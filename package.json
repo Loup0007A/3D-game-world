@@ -1,0 +1,22 @@
+{
+  "name": "mondes-vivants",
+  "version": "1.0.0",
+  "description": "Jeu d'exploration 3D procédural : îles nées du bruit fractal, reliques, portail et slimes.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "build:single": "vite build --mode single"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21",
+    "vite-plugin-singlefile": "^2.3.3"
+  },
+  "private": true,
+  "type": "module"
+}

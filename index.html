@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Mondes Vivants</title>
+  <meta name="description" content="Explore des îles générées par le bruit fractal. Trouve les reliques, ouvre le portail, survis aux slimes." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏝️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="underwater"></div>
+  <div id="hurt"></div>
+  <div id="fade"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="bars">
+      <div class="bar health"><span class="ico">♥</span><div class="track"><div class="fill" id="hp-fill"></div><div class="hp-ghost" id="hp-ghost"></div></div></div>
+      <div class="bar stamina"><span class="ico">⚡</span><div class="track"><div class="fill" id="st-fill"></div></div></div>
+      <div id="relic-row"></div>
+    </div>
+    <div id="mapbox">
+      <canvas id="minimap" width="180" height="180"></canvas>
+      <div id="clock">08:00</div>
+      <div id="compass-n">N</div>
+    </div>
+    <div id="hint-relic"></div>
+    <div id="biome-toast"></div>
+    <div id="toast"></div>
+    <div id="score"><span id="world-label">Monde 1</span> · <span id="score-val">0</span> pts</div>
+    <div id="crosshair"></div>
+    <div id="click-to-play">Clique pour contrôler la caméra</div>
+  </div>
+
+  <div id="bigmap" class="overlay hidden">
+    <div class="panel map-panel">
+      <canvas id="bigmap-canvas" width="560" height="560"></canvas>
+      <p class="muted">M ou Échap pour fermer</p>
+    </div>
+  </div>
+
+  <!-- Écran titre -->
+  <div id="title" class="overlay">
+    <div class="title-inner">
+      <h1>Mondes <em>Vivants</em></h1>
+      <p class="tagline">Des îles nées du bruit fractal. Sept biomes. Des reliques perdues. Un portail.</p>
+      <div class="seed-row">
+        <label for="seed-input">Graine</label>
+        <input id="seed-input" type="text" inputmode="numeric" maxlength="10" />
+        <button id="seed-random" class="btn ghost" title="Graine aléatoire">⟳</button>
+      </div>
+      <button id="play-btn" class="btn primary">Explorer</button>
+      <div class="controls-grid">
+        <div><kbd>ZQSD</kbd><kbd>WASD</kbd> se déplacer</div>
+        <div><kbd>Souris</kbd> caméra · <kbd>Molette</kbd> zoom</div>
+        <div><kbd>Espace</kbd> sauter / nager vers le haut</div>
+        <div><kbd>Shift</kbd> courir · <kbd>Clic</kbd>/<kbd>F</kbd> frapper</div>
+        <div><kbd>M</kbd> carte · <kbd>Échap</kbd> pause</div>
+      </div>
+      <p id="best" class="muted"></p>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2>Pause</h2>
+      <button id="resume-btn" class="btn primary">Reprendre</button>
+      <div class="setting">
+        <label for="quality">Qualité</label>
+        <select id="quality">
+          <option value="low">Basse</option>
+          <option value="medium">Moyenne</option>
+          <option value="high">Haute</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label for="sens">Sensibilité</label>
+        <input id="sens" type="range" min="0.3" max="2.5" step="0.1" value="1" />
+      </div>
+      <div class="setting">
+        <label for="timescale">Vitesse du temps</label>
+        <select id="timescale">
+          <option value="0">Figé</option>
+          <option value="1" selected>Normale</option>
+          <option value="4">Rapide</option>
+          <option value="12">Très rapide</option>
+        </select>
+      </div>
+      <div class="setting check"><label><input id="invert" type="checkbox" /> Inverser l'axe vertical</label></div>
+      <div class="setting check"><label><input id="mute" type="checkbox" /> Couper le son</label></div>
+      <div class="row">
+        <button id="newworld-btn" class="btn">Nouveau monde</button>
+        <button id="menu-btn" class="btn ghost">Menu</button>
+      </div>
+      <p class="muted" id="pause-seed"></p>
+    </div>
+  </div>
+
+  <!-- Mort -->
+  <div id="dead" class="overlay hidden">
+    <div class="panel">
+      <h2>Évanoui…</h2>
+      <p class="muted">Tu te réveilles au portail. Tes reliques sont sauves.</p>
+      <button id="respawn-btn" class="btn primary">Se relever</button>
+    </div>
+  </div>
+
+  <!-- Chargement -->
+  <div id="loading" class="overlay hidden">
+    <div class="load-inner">
+      <div class="load-title">Génération du monde</div>
+      <div class="load-bar"><div id="load-fill"></div></div>
+      <div id="load-msg">…</div>
+    </div>
+  </div>
+
+  <!-- Tactile -->
+  <div id="touch-ui">
+    <div id="touch-stick"><div id="touch-knob"></div></div>
+    <button id="touch-attack" class="touch-btn">⚔</button>
+    <button id="touch-jump" class="touch-btn">⤒</button>
+    <button id="touch-run" class="touch-btn">»</button>
+    <button id="touch-pause" class="touch-btn small">❚❚</button>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
