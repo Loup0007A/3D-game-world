@@ -57,6 +57,8 @@ Structure d'une histoire :
 - intro, puis **10 chapitres** (une île chacun) ;
 - **5 à 9 reliques** par île (70 en tout), chacune avec un fragment d'histoire ;
 - **35 artefacts cachés** par île, sans faisceau ni repère sur la carte (ils ne scintillent que de près) : chacun donne **+2 de vie max et +2 % d'attaque** jusqu'à la fin de l'histoire, dans la limite de 50 artefacts (+100 vie, attaque ×2) — réglage `ARTEFACT` dans `src/main.js` ;
+- parmi eux, des **artefacts légendaires**, plus brillants : **Dieu vivant** (1 % de chance par artefact) — chaque coup terrasse l'ennemi, boss compris — et **Bouclier divin** (3 %) — 2 attaques ennemies sur 3 ratent (les chutes ne sont pas esquivées). Leur pouvoir dure jusqu'au passage du portail (fin de l'île) ;
+- Échos renforcés (PV ×1,3, dégâts ×1,2, vitesse ×1,2) et tous capables d'attaquer à distance ; dans les premières histoires leurs tirs sont plus rares, plus faibles et mieux annoncés (réglages `BUFF` et `SHOT` dans `src/entities/slimes.js`) ;
 - quand toutes les reliques sont prises, un **gardien** (boss) apparaît au portail : il bondit (cercle rouge), invoque des renforts, puis crache des salves à mi-vie ;
 - au chapitre 10, le gardien final, puis le choix de fin et l'écran « Histoire suivante ».
 

@@ -12,7 +12,7 @@ import { Player } from './entities/player.js';
 import { FishSchool, Birds } from './entities/fauna.js';
 import { SlimeManager, TYPES } from './entities/slimes.js';
 import { Relics, Portal, Orbs } from './entities/relics.js';
-import { Artifacts, ARTEFACTS_PER_ISLAND } from './entities/artifacts.js';
+import { Artifacts, ARTEFACTS_PER_ISLAND, LEGENDARY } from './entities/artifacts.js';
 import { Particles } from './entities/particles.js';
 import { Input } from './core/input.js';
 import { ThirdPersonCamera } from './core/camera.js';
@@ -164,6 +164,7 @@ async function buildWorld(n, c, withLoading = true) {
   diff = difficulty(n, c - 1);
   slimes = new SlimeManager(scene, terrain, diff);
   slimes.playerDmgMul = artefactDmgMul();
+  slimes.godMode = !!divine.god;
   await step(0.95, 'Presque prêt…');
 
   world = { seed, terrain, water, vegetation, fish, birds, relics, portal, spawn, artifacts };
@@ -206,7 +207,7 @@ function save() {
   if (!storyN) return;
   const taken = world ? world.relics.items.map((r, i) => (r.taken ? i : -1)).filter((i) => i >= 0) : [];
   const artsTaken = world ? world.artifacts.takenIndices() : [];
-  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken });
+  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken, divine });
 }
 function readSave() {
   const s = store.get(SAVE_KEY, null);
@@ -247,6 +248,12 @@ function report(statut, raison, extra = '', fin = true) {
 // histoire (+100 vie, attaque ×2), pour ne pas rendre le jeu trop facile.
 const ARTEFACT = { hp: 2, atk: 0.02, max: 50 };
 let artefacts = 0;
+// Pouvoirs légendaires actifs jusqu'à la fin de l'île en cours.
+let divine = {};
+function applyDivine() {
+  if (slimes) slimes.godMode = !!divine.god;
+  player.divineShield = !!divine.shield;
+}
 const artefactBonusCount = () => Math.min(artefacts, ARTEFACT.max);
 const artefactDmgMul = () => 1 + artefactBonusCount() * ARTEFACT.atk;
 function applyArtefacts() {
@@ -256,6 +263,20 @@ function applyArtefacts() {
 }
 function onArtefact(a) {
   const p = a.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
+  if (a.legend) {
+    const L = LEGENDARY[a.legend];
+    divine = { ...divine, [a.legend]: true };
+    applyDivine();
+    particles.burst(p, L.color, 160, { speed: 10, up: 12, gravity: -6, size: 0.5, life: 2 });
+    sfx.unlock();
+    score += 500;
+    player.health = player.maxHealth;
+    hud.toast(a.legend === 'god'
+      ? `✨ Artefact légendaire : <b>${L.name}</b> ! Chaque coup terrasse l'ennemi, jusqu'à la fin de l'île.`
+      : `🛡️ Artefact légendaire : <b>${L.name}</b> ! 2 attaques ennemies sur 3 te ratent, jusqu'à la fin de l'île.`, 6000);
+    save();
+    return;
+  }
   particles.burst(p, a.color, 50, { speed: 5, up: 6, gravity: -8, size: 0.32, life: 1.1 });
   sfx.heal();
   score += 25;
@@ -403,8 +424,10 @@ $('play-btn').addEventListener('click', async () => {
   if (builtFor !== `${storyN}:1`) await buildWorld(storyN, 1);
   else placeAtArch();
   artefacts = 0;
+  divine = {};
   applyStartKit();
   applyArtefacts();
+  applyDivine();
   ui.buildBar(skills);
   ui.clearDialogue();
   env.time = 0.3;
@@ -432,8 +455,10 @@ $('continue-btn').addEventListener('click', async () => {
   if (builtFor !== `${storyN}:${chapter}`) await buildWorld(storyN, chapter);
   else placeAtArch();
   artefacts = s.arts || 0;
+  divine = s.divine || {};
   skills.load(s.skills, player);
   applyArtefacts();
+  applyDivine();
   for (const i of s.artsTaken || []) world.artifacts.markTaken(i);
   player.health = player.maxHealth;
   player.stamina = player.maxStamina;
@@ -580,6 +605,7 @@ async function nextWorld() {
   }
 
   chapter++;
+  if (divine.god || divine.shield) { divine = {}; applyDivine(); }
   await buildWorld(storyN, chapter);
   fade.style.opacity = '0';
   save();
@@ -598,6 +624,9 @@ function handleEvents() {
       case 'shieldHit':
         sfx.boltHit();
         particles.burst(player.pos.clone().add(new THREE.Vector3(0, 1, 0)), 0x9ff3ff, 14, { speed: 4, size: 0.25 });
+        break;
+      case 'dodge':
+        particles.burst(player.pos.clone().add(new THREE.Vector3(0, 1.1, 0)), 0x9fe8ff, 16, { speed: 4, up: 2, gravity: 0, size: 0.28, life: 0.5 });
         break;
       case 'death':
         flags.deaths = (flags.deaths || 0) + 1;
@@ -924,6 +953,6 @@ function simulate(sec, keys = []) {
 // Accès debug / tests.
 window.__game = {
   get world() { return world; }, get slimes() { return slimes; }, get score() { return score; }, get chapter() { return chapter; },
-  get state() { return state; }, get artefacts() { return artefacts; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
+  get state() { return state; }, get artefacts() { return artefacts; }, get divine() { return divine; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
   story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES,
 };

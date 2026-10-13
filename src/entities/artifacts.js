@@ -8,6 +8,15 @@ import { mulberry32 } from '../core/noise.js';
 
 export const ARTEFACTS_PER_ISLAND = 35;
 
+// Artefacts légendaires (tirés au sort pour chaque artefact de l'île) :
+//  - « Dieu vivant » (1 %) : chaque attaque terrasse l'ennemi d'un coup ;
+//  - « Bouclier divin » (3 %) : 2 attaques ennemies sur 3 ratent.
+// Leur pouvoir dure jusqu'à la fin de l'île (passage du portail).
+export const LEGENDARY = {
+  god: { chance: 0.01, name: 'Dieu vivant', color: 0xfff6c8, emissive: 0xffd34d },
+  shield: { chance: 0.03, name: 'Bouclier divin', color: 0x9fe8ff, emissive: 0x2fb8ff },
+};
+
 const runeGeo = new THREE.OctahedronGeometry(0.32, 0);
 const baseGeo = new THREE.CylinderGeometry(0.35, 0.5, 0.35, 6);
 const baseMat = new THREE.MeshStandardMaterial({ color: 0x5d5650, roughness: 0.95, flatShading: true });
@@ -30,6 +39,8 @@ export class Artifacts {
     const pts = terrain.scatterLand(count, 60, rand, avoid);
     this.items = pts.map((p, i) => {
       const kind = i % KINDS.length;
+      const roll = rand();
+      const legend = roll < LEGENDARY.god.chance ? 'god' : roll < LEGENDARY.god.chance + LEGENDARY.shield.chance ? 'shield' : null;
       const g = new THREE.Group();
       g.position.copy(p);
       g.rotation.y = rand() * Math.PI * 2;
@@ -37,21 +48,25 @@ export class Artifacts {
       base.position.y = 0.1;
       base.castShadow = base.receiveShadow = true;
       g.add(base);
-      const rune = new THREE.Mesh(runeGeo, mats[kind].clone());
+      const L = legend && LEGENDARY[legend];
+      const rune = new THREE.Mesh(runeGeo, L
+        ? new THREE.MeshStandardMaterial({ color: L.color, emissive: L.emissive, emissiveIntensity: 0.8, roughness: 0.15, metalness: 0.6, flatShading: true })
+        : mats[kind].clone());
+      if (L) rune.scale.setScalar(1.35);
       rune.position.y = 0.75;
       rune.scale.y = 1.6;
       rune.castShadow = true;
       g.add(rune);
       const sparks = [];
       for (let k = 0; k < 4; k++) {
-        const s = new THREE.Mesh(sparkGeo, sparkMats[kind]);
+        const s = new THREE.Mesh(sparkGeo, L ? new THREE.MeshBasicMaterial({ color: L.color, transparent: true, opacity: 0.95, depthWrite: false }) : sparkMats[kind]);
         s.userData.a = (k / 4) * Math.PI * 2;
         g.add(s);
         sparks.push(s);
       }
       g.visible = false;
       scene.add(g);
-      return { group: g, rune, sparks, kind, color: KINDS[kind].color, pos: p.clone(), taken: false, phase: rand() * 10 };
+      return { group: g, rune, sparks, kind, legend, color: L ? L.color : KINDS[kind].color, pos: p.clone(), taken: false, phase: rand() * 10 };
     });
   }
 
@@ -77,7 +92,7 @@ export class Artifacts {
       if (!a.group.visible) continue;
       const near = 1 - Math.min(d / 14, 1);
       a.rune.rotation.y = t * 1.2 + a.phase;
-      a.rune.position.y = 0.75 + Math.sin(t * 2 + a.phase) * 0.08;
+      a.rune.position.y = (a.legend ? 1.0 : 0.75) + Math.sin(t * 2 + a.phase) * 0.08;
       a.rune.material.emissiveIntensity = 0.35 + near * 2.2;
       a.sparks.forEach((s, k) => {
         const ang = s.userData.a + t * 1.8;

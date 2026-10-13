@@ -218,6 +218,12 @@ export class Player {
 
   damage(amount, from) {
     if (this.invuln > 0 || !this.alive) return false;
+    // « Bouclier divin » : 2 attaques ennemies sur 3 ratent (pas les chutes).
+    if (from && this.divineShield && Math.random() < 2 / 3) {
+      this.invuln = 0.25;
+      this.events.push({ type: 'dodge' });
+      return false;
+    }
     if (this.shieldT > 0) {
       this.invuln = 0.3;
       this.events.push({ type: 'shieldHit' });

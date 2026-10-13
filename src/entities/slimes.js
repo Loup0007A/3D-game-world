@@ -26,11 +26,11 @@ export const TYPES = {
     shot: { kind: 'lob', dmg: 16, cd: 3.2, range: 40, speed: 20, count: 3, spread: 3 } },
 };
 
-// Renfort général des Échos : plus résistants, plus forts, plus rapides, et
-// repèrent le joueur de plus loin.
-const BUFF = { hp: 1.8, dmg: 1.7, speed: 1.4, aggro: 1.4, density: 1.25 };
-// Délai d'avertissement avant un tir (l'Écho brille) : laisse le temps d'esquiver.
-const WINDUP = 0.42;
+// Renfort général des Échos (équilibré pour rester jouable dès la 1re histoire).
+const BUFF = { hp: 1.3, dmg: 1.2, speed: 1.2, aggro: 1.25, density: 1.1 };
+// Tirs : rares et lents à préparer au début, plus nourris dans les dernières
+// histoires (tier = 0 → 1 selon la difficulté de l'histoire).
+const SHOT = { cdEarly: 1.8, cdLate: 1.0, windEarly: 0.7, windLate: 0.42, dmgEarly: 0.6, dmgLate: 1.0 };
 
 // Ordre d'apparition des nouveaux Échos au fil des histoires.
 export const ENEMY_UNLOCK = { wisp: 6, spitter: 16, golem: 30, shade: 48 };
@@ -153,6 +153,7 @@ export class SlimeManager {
     this.slowT = 0;
     this.boss = null;
     this.playerDmgMul = 1;
+    this.godMode = false;
     this.setDifficulty(diff);
   }
 
@@ -167,6 +168,9 @@ export class SlimeManager {
       aggro: d.aggro * BUFF.aggro,
       density: d.density * BUFF.density,
     };
+    // 0 à la 1re histoire, 1 à la 100e (diff.dmg va de 1 à 2,4).
+    this.tier = clamp((d.dmg - 1) / 1.4, 0, 1);
+    this.windup = lerp(SHOT.windEarly, SHOT.windLate, this.tier);
   }
 
   spawn(type, pos) {
@@ -259,7 +263,7 @@ export class SlimeManager {
     this.globs.push({
       m, v, gravity, kind, color,
       life: kind === 'bolt' ? 2.2 : 4,
-      dmg: opts.dmg ?? Math.round(11 * this.diff.dmg),
+      dmg: opts.dmg ?? Math.round(11 * this.diff.dmg * lerp(SHOT.dmgEarly, SHOT.dmgLate, this.tier)),
       radius: kind === 'rock' ? 1.3 : kind === 'bolt' ? 0.75 : 0.9,
       spin: kind === 'rock' ? 6 : 0,
     });
@@ -279,7 +283,7 @@ export class SlimeManager {
       this._shoot(from, aim.clone().addScaledVector(side, off), sh.speed * Math.sqrt(this.diff.speed / BUFF.speed) * 1.1, {
         kind: sh.kind,
         color: sh.color ?? s.T.color,
-        dmg: Math.round(sh.dmg * this.diff.dmg),
+        dmg: Math.max(1, Math.round(sh.dmg * this.diff.dmg * lerp(SHOT.dmgEarly, SHOT.dmgLate, this.tier))),
       });
     }
   }
@@ -411,7 +415,7 @@ export class SlimeManager {
       if (sh && !rooted && player.alive) {
         if (s.windT >= 0) {
           s.windT += sdt;
-          if (s.windT >= WINDUP) {
+          if (s.windT >= this.windup) {
             s.windT = -1;
             if (aggro) this._fire(s, player, toP);
           }
@@ -420,7 +424,7 @@ export class SlimeManager {
           if (s.shootCd <= 0 && dist < sh.range && dist > 3.5) {
             s.windT = 0;
             const enrage = s.T.boss && s.hp < s.maxHp * 0.5 ? 0.7 : 1;
-            s.shootCd = (sh.cd * enrage * (0.85 + Math.random() * 0.3)) / Math.sqrt(this.diff.speed / BUFF.speed);
+            s.shootCd = (sh.cd * lerp(SHOT.cdEarly, SHOT.cdLate, this.tier) * enrage * (0.85 + Math.random() * 0.3)) / Math.sqrt(this.diff.speed / BUFF.speed);
           }
         }
       } else if (rooted) s.windT = -1;
@@ -444,7 +448,7 @@ export class SlimeManager {
       s.object.position.copy(s.pos);
       if (mv === 'float') s.object.position.y += Math.sin(elapsed * 4 + s.phase) * 0.15;
       const base = s.T.glow ?? 0.18;
-      s.mat.emissiveIntensity = s.hurtT > 0 ? 1.8 : rooted ? 0.05 : s.windT >= 0 ? 1.2 + 1.6 * (s.windT / WINDUP) : base + night * 0.25 + (this.slowT > 0 ? 0.5 : 0);
+      s.mat.emissiveIntensity = s.hurtT > 0 ? 1.8 : rooted ? 0.05 : s.windT >= 0 ? 1.2 + 1.6 * (s.windT / this.windup) : base + night * 0.25 + (this.slowT > 0 ? 0.5 : 0);
     }
 
     // Projectiles des cracheurs
@@ -523,7 +527,7 @@ export class SlimeManager {
       const sp = aggro ? s.T.speed : s.T.speed * 0.4;
       s.vel.set(dir.x * sp, aggro ? 7 : 5, dir.z * sp);
       s.onGround = false;
-      s.hopTimer = aggro ? 0.36 + Math.random() * 0.22 + keep * 0.7 : 1.2 + Math.random() * 1.5;
+      s.hopTimer = aggro ? 0.45 + Math.random() * 0.25 + keep * 0.8 : 1.2 + Math.random() * 1.5;
       s.squash = -0.3;
       s.object.rotation.y = Math.atan2(dir.x, dir.z);
     }
@@ -599,8 +603,8 @@ export class SlimeManager {
 
   damage(s, dmg, from, knock = 9) {
     if (s.dying >= 0) return;
-    // Bonus d'attaque du héros (artefacts cachés).
-    s.hp -= dmg * this.playerDmgMul;
+    // Bonus d'attaque du héros (artefacts cachés) ; « Dieu vivant » : un coup suffit.
+    s.hp -= this.godMode ? s.hp + 1 : dmg * this.playerDmgMul;
     s.hurtT = 0.18;
     const k = knock * s.T.knockMul;
     if (k > 0.5 && s.rootT <= 0) {
