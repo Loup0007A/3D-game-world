@@ -498,6 +498,30 @@ $('abandon-btn').addEventListener('click', () => {
 $('menu-btn').addEventListener('click', () => { save(); setState('title'); });
 $('journal-btn').addEventListener('click', () => openJournal());
 $('respawn-btn').addEventListener('click', () => respawn());
+
+// Délai avant de pouvoir se relever après une mort.
+const RESPAWN_DELAY = 60; // secondes
+let respawnAt = 0;
+let respawnTimer = null;
+function startRespawnCooldown() {
+  respawnAt = Date.now() + RESPAWN_DELAY * 1000;
+  const btn = $('respawn-btn');
+  const tick = () => {
+    const left = Math.ceil((respawnAt - Date.now()) / 1000);
+    if (left > 0) {
+      btn.disabled = true;
+      btn.textContent = `Se relever (${left} s)`;
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Se relever';
+      clearInterval(respawnTimer);
+      respawnTimer = null;
+    }
+  };
+  clearInterval(respawnTimer);
+  tick();
+  respawnTimer = setInterval(tick, 250);
+}
 $('quality').addEventListener('change', (e) => { quality = e.target.value; store.set('mv-quality', quality); applyQuality(); });
 $('sens').addEventListener('input', (e) => { input.sensitivity = parseFloat(e.target.value); store.set('mv-sens', input.sensitivity); });
 $('invert').addEventListener('change', (e) => { input.invertY = e.target.checked; store.set('mv-invert', input.invertY); });
@@ -548,6 +572,7 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('pagehide', () => { if (story && (state === 'playing' || state === 'paused')) save(); });
 
 function respawn() {
+  if (Date.now() < respawnAt) return;
   const kept = raid.active && slimes.boss ? { hp: slimes.boss.hp, maxHp: slimes.boss.maxHp } : null;
   placeAtArch();
   slimes.clear();
@@ -737,6 +762,7 @@ function handleEvents() {
         break;
       case 'death':
         flags.deaths = (flags.deaths || 0) + 1;
+        startRespawnCooldown();
         sfx.death();
         setTimeout(() => { if (!player.alive) { setState('dead'); updateRaidButton(); } }, 900);
         break;
