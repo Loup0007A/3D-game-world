@@ -220,17 +220,21 @@ function markDone(ending) {
 }
 
 // ─── Résultat envoyé au site principal ─────────────────────────────
-function report(statut, raison, extra = '') {
+// Un résultat par CHAPITRE (île) : chaque chapitre terminé est une réussite
+// (+1 Puissance sur le S.I.D.) ; le 10e est aussi la fin de l'histoire.
+// `fin` : true quand la tentative d'histoire s'arrête (fin, abandon…).
+let chapterStart = Date.now();
+function report(statut, raison, extra = '', fin = true) {
   if (!run) return;
   const deaths = flags.deaths || 0;
   sendResult({
-    niveau: storyN, statut,
+    niveau: storyN, chapitre: chapter, statut,
     score: statut === 'reussi' ? Math.max(30, 100 - deaths * 3) : 0,
     raison,
     details: `chapitre=${chapter};morts=${deaths};temps_jeu_min=${Math.round(playTime / 60)};points=${score}${extra}`,
-    session: run.session, debut: run.debut, fin: Date.now(),
+    session: `${run.session}:c${chapter}`, debut: chapterStart, fin: Date.now(),
   });
-  run = null;
+  if (fin) run = null;
 }
 
 // Compétences et forces de départ de l'histoire.
@@ -399,6 +403,7 @@ $('continue-btn').addEventListener('click', async () => {
 });
 
 function startChapter(resumed = false) {
+  chapterStart = Date.now();
   player.regen = diff.regen;
   player.diffDmg = diff.dmg;
   play();
@@ -501,6 +506,7 @@ async function nextWorld() {
   fade.style.opacity = '1';
   await wait(900);
   score += 250 * chapter;
+  if (chapter < CHAPTER_COUNT) report('reussi', 'chapitre_termine', '', false);
 
   if (chapter >= CHAPTER_COUNT) {
     fade.style.opacity = '0';
@@ -629,7 +635,7 @@ function handleEvents() {
         if (player.pos.distanceTo(e.pos) < 25) cam.shake = Math.min(cam.shake + (e.big ? 0.8 : 0.4), 1);
         break;
       case 'spit': sfx.squish(); break;
-      case 'splat': particles.burst(e.pos, 0xff8a3c, 10, { speed: 2.5, up: 2, gravity: -8, size: 0.3, life: 0.5 }); break;
+      case 'splat': particles.burst(e.pos, e.color ?? 0xff8a3c, 10, { speed: 2.5, up: 2, gravity: -8, size: 0.3, life: 0.5 }); break;
       case 'blink': particles.burst(e.from.clone().add(new THREE.Vector3(0, 0.5, 0)), 0x6a4aa8, 18, { speed: 2, up: 1.5, gravity: 0, size: 0.35, life: 0.6 }); break;
       case 'summon': particles.burst(e.pos.clone().add(new THREE.Vector3(0, 1, 0)), 0xff4a6a, 40, { speed: 6, up: 4, gravity: -4, size: 0.4, life: 0.9 }); break;
     }

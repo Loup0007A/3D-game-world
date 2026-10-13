@@ -8,7 +8,7 @@ export const REPORT = {
 };
 
 // Champs fixés par le jeu : un paramètre d'URL du même nom est ignoré.
-const RESERVES = ['email', 'epreuve', 'epreuve_num', 'niveau', 'statut', 'reussi', 'score', 'raison', 'details', 'session', 'debut', 'fin', 'duree_s', 'source', 'origine', 'parent', 'integre', 'ts', 'sig', 'story'];
+const RESERVES = ['email', 'epreuve', 'epreuve_num', 'niveau', 'chapitre', 'statut', 'reussi', 'score', 'raison', 'details', 'session', 'debut', 'fin', 'duree_s', 'source', 'origine', 'parent', 'integre', 'ts', 'sig', 'story'];
 
 export function fnv(str) {
   let h = 0x811c9dc5;
@@ -64,14 +64,14 @@ function markSent(session) {
 }
 const sentMem = new Set();
 
-// r : { niveau, statut ('reussi' | 'echoue'), score (0-100), raison, details, session, debut, fin }
+// r : { niveau, chapitre, statut ('reussi' | 'echoue'), score (0-100), raison, details, session, debut, fin }
 export function sendResult(r) {
   if (!r.session || sentMem.has(r.session) || alreadySent(r.session)) return null;
   markSent(r.session);
   const p = passthroughParams();
   const data = {
     email: getEmail(),
-    epreuve: REPORT.EPREUVE, epreuve_num: REPORT.EPREUVE_NUM, niveau: r.niveau,
+    epreuve: REPORT.EPREUVE, epreuve_num: REPORT.EPREUVE_NUM, niveau: r.niveau, chapitre: r.chapitre ?? '',
     statut: r.statut, reussi: r.statut === 'reussi' ? 1 : 0, score: r.score,
     raison: r.raison || '', details: r.details || '', session: r.session,
     debut: new Date(r.debut).toISOString(), fin: new Date(r.fin).toISOString(),

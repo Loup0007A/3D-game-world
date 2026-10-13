@@ -3,17 +3,34 @@ import { clamp, lerp } from '../core/noise.js';
 import { SEA_LEVEL, WORLD_SIZE, BIOME } from '../world/terrain.js';
 
 // Types d'Échos. move : hop (saute), float (vole), walk (marche lourde), blink (se téléporte).
+// shot : attaque à distance (lob = projectile en cloche, bolt = trait rapide en
+// ligne droite, rock = gros rocher lent) ; count/spread = salve en éventail.
 export const TYPES = {
-  green: { color: 0x7be36a, hp: 2, dmg: 12, scale: 1, speed: 5.5, score: 10, move: 'hop' },
-  bog: { color: 0x9b6bff, hp: 3, dmg: 14, scale: 1.15, speed: 5, score: 15, move: 'hop' },
-  frost: { color: 0x8fdcff, hp: 3, dmg: 14, scale: 1.1, speed: 6, score: 15, move: 'hop' },
-  king: { color: 0xff5a5a, hp: 6, dmg: 22, scale: 1.9, speed: 4.2, score: 40, move: 'hop', crown: true },
-  wisp: { color: 0xfff09a, hp: 1, dmg: 9, scale: 0.55, speed: 8.5, score: 12, move: 'float', glow: 1.6 },
-  spitter: { color: 0xff8a3c, hp: 3, dmg: 10, scale: 1.05, speed: 4.2, score: 20, move: 'hop', ranged: true },
-  golem: { color: 0x8a8178, hp: 10, dmg: 26, scale: 1.55, speed: 2.6, score: 50, move: 'walk', knockMul: 0.25, stone: true },
-  shade: { color: 0x3a2a5c, hp: 3, dmg: 18, scale: 1.0, speed: 6.5, score: 30, move: 'blink', glow: 0.9 },
-  boss: { color: 0xd23a5a, hp: 18, dmg: 20, scale: 3.4, speed: 4.6, score: 400, move: 'hop', crown: true, knockMul: 0.08, boss: true },
+  green: { color: 0x7be36a, hp: 2, dmg: 12, scale: 1, speed: 5.5, score: 10, move: 'hop',
+    shot: { kind: 'lob', dmg: 9, cd: 3.4, range: 20, speed: 17 } },
+  bog: { color: 0x9b6bff, hp: 3, dmg: 14, scale: 1.15, speed: 5, score: 15, move: 'hop',
+    shot: { kind: 'lob', dmg: 11, cd: 3.0, range: 22, speed: 17, count: 2, spread: 2 } },
+  frost: { color: 0x8fdcff, hp: 3, dmg: 14, scale: 1.1, speed: 6, score: 15, move: 'hop',
+    shot: { kind: 'bolt', dmg: 10, cd: 3.2, range: 26, speed: 24 } },
+  king: { color: 0xff5a5a, hp: 6, dmg: 22, scale: 1.9, speed: 4.2, score: 40, move: 'hop', crown: true,
+    shot: { kind: 'lob', dmg: 13, cd: 3.4, range: 26, speed: 18, count: 3, spread: 2.6 } },
+  wisp: { color: 0xfff09a, hp: 1, dmg: 9, scale: 0.55, speed: 8.5, score: 12, move: 'float', glow: 1.6,
+    shot: { kind: 'bolt', dmg: 7, cd: 2.2, range: 24, speed: 28 } },
+  spitter: { color: 0xff8a3c, hp: 3, dmg: 10, scale: 1.05, speed: 4.2, score: 20, move: 'hop', ranged: true,
+    shot: { kind: 'lob', dmg: 11, cd: 2.0, range: 30, speed: 19, count: 3, spread: 1.6 } },
+  golem: { color: 0x8a8178, hp: 10, dmg: 26, scale: 1.55, speed: 2.6, score: 50, move: 'walk', knockMul: 0.25, stone: true,
+    shot: { kind: 'rock', dmg: 22, cd: 4.2, range: 28, speed: 14 } },
+  shade: { color: 0x3a2a5c, hp: 3, dmg: 18, scale: 1.0, speed: 6.5, score: 30, move: 'blink', glow: 0.9,
+    shot: { kind: 'bolt', dmg: 14, cd: 2.6, range: 22, speed: 32, color: 0xb070ff } },
+  boss: { color: 0xd23a5a, hp: 18, dmg: 20, scale: 3.4, speed: 4.6, score: 400, move: 'hop', crown: true, knockMul: 0.08, boss: true,
+    shot: { kind: 'lob', dmg: 16, cd: 3.2, range: 40, speed: 20, count: 3, spread: 3 } },
 };
+
+// Renfort général des Échos : plus résistants, plus forts, plus rapides, et
+// repèrent le joueur de plus loin.
+const BUFF = { hp: 1.8, dmg: 1.7, speed: 1.4, aggro: 1.4, density: 1.25 };
+// Délai d'avertissement avant un tir (l'Écho brille) : laisse le temps d'esquiver.
+const WINDUP = 0.42;
 
 // Ordre d'apparition des nouveaux Échos au fil des histoires.
 export const ENEMY_UNLOCK = { wisp: 6, spitter: 16, golem: 30, shade: 48 };
@@ -38,7 +55,18 @@ const glowEyeMat = new THREE.MeshBasicMaterial({ color: 0xffd25a });
 const pupilMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 });
 const crownMat = new THREE.MeshStandardMaterial({ color: 0xffd34d, metalness: 0.8, roughness: 0.3, side: THREE.DoubleSide });
 const globGeo = new THREE.SphereGeometry(0.28, 10, 8);
-const globMat = new THREE.MeshStandardMaterial({ color: 0xff8a3c, emissive: 0xff5a1c, emissiveIntensity: 1.4, roughness: 0.3 });
+const boltGeo = new THREE.CapsuleGeometry(0.12, 0.7, 4, 8).rotateX(Math.PI / 2);
+const rockGeo = new THREE.DodecahedronGeometry(0.55, 0);
+const shotMats = new Map();
+function shotMat(color, stone) {
+  const key = `${color}:${stone ? 1 : 0}`;
+  if (!shotMats.has(key)) {
+    shotMats.set(key, stone
+      ? new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true, emissive: 0xff5020, emissiveIntensity: 0.25 })
+      : new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.6, roughness: 0.3 }));
+  }
+  return shotMats.get(key);
+}
 const rootGeo = new THREE.ConeGeometry(0.12, 1.3, 4).translate(0, 0.5, 0);
 const rootMat = new THREE.MeshStandardMaterial({ color: 0x6fae45, emissive: 0x2c5a18, emissiveIntensity: 0.6, roughness: 0.9, flatShading: true });
 
@@ -61,7 +89,8 @@ class Slime {
     this.hurtT = 0;
     this.dying = -1;
     this.attackCd = 0;
-    this.shootCd = 1.5 + Math.random();
+    this.shootCd = 1.2 + Math.random() * 1.5;
+    this.windT = -1;
     this.blinkCd = 2 + Math.random() * 2;
     this.slamT = -1;
     this.rootT = 0;
@@ -128,11 +157,19 @@ export class SlimeManager {
 
   // diff : { hp, dmg, speed, density, kingChance, aggro, types: [...] }
   setDifficulty(diff) {
-    this.diff = { hp: 1, dmg: 1, speed: 1, density: 1, kingChance: 0.04, aggro: 26, types: [], ...diff };
+    const d = { hp: 1, dmg: 1, speed: 1, density: 1, kingChance: 0.04, aggro: 26, types: [], ...diff };
+    this.diff = {
+      ...d,
+      hp: d.hp * BUFF.hp,
+      dmg: d.dmg * BUFF.dmg,
+      speed: d.speed * BUFF.speed,
+      aggro: d.aggro * BUFF.aggro,
+      density: d.density * BUFF.density,
+    };
   }
 
   spawn(type, pos) {
-    const mods = type === 'boss' ? { hp: this.diff.hp * this.diff.bossHp, dmg: this.diff.dmg, speed: Math.min(this.diff.speed, 1.3) } : this.diff;
+    const mods = type === 'boss' ? { hp: this.diff.hp * (this.diff.bossHp ?? 1), dmg: this.diff.dmg, speed: Math.min(this.diff.speed, 1.3 * BUFF.speed) } : this.diff;
     const s = new Slime(type, pos, mods);
     if (type === 'wisp') s.pos.y += s.flyY;
     this.list.push(s);
@@ -199,16 +236,51 @@ export class SlimeManager {
     return r;
   }
 
-  _shoot(from, target, speed = 16) {
-    const m = new THREE.Mesh(globGeo, globMat);
+  // Projectile : 'lob' (en cloche), 'bolt' (ligne droite), 'rock' (gros, en cloche).
+  _shoot(from, target, speed = 16, opts = {}) {
+    const kind = opts.kind || 'lob';
+    const color = opts.color ?? 0xff8a3c;
+    const m = new THREE.Mesh(kind === 'bolt' ? boltGeo : kind === 'rock' ? rockGeo : globGeo, shotMat(color, kind === 'rock'));
     m.position.copy(from);
     const d = new THREE.Vector3().subVectors(target, from);
-    const flat = Math.hypot(d.x, d.z);
-    const t = Math.max(flat / speed, 0.4);
-    const v = new THREE.Vector3(d.x / t, (d.y + 0.5 * 18 * t * t) / t, d.z / t);
+    let v, gravity;
+    if (kind === 'bolt') {
+      v = d.clone().normalize().multiplyScalar(speed);
+      gravity = 0;
+      m.lookAt(target);
+    } else {
+      gravity = kind === 'rock' ? 22 : 18;
+      const flat = Math.hypot(d.x, d.z);
+      const t = Math.max(flat / speed, 0.4);
+      v = new THREE.Vector3(d.x / t, (d.y + 0.5 * gravity * t * t) / t, d.z / t);
+    }
     this.scene.add(m);
-    this.globs.push({ m, v, life: 4 });
-    this.events.push({ type: 'spit', pos: from.clone() });
+    this.globs.push({
+      m, v, gravity, kind, color,
+      life: kind === 'bolt' ? 2.2 : 4,
+      dmg: opts.dmg ?? Math.round(11 * this.diff.dmg),
+      radius: kind === 'rock' ? 1.3 : kind === 'bolt' ? 0.75 : 0.9,
+      spin: kind === 'rock' ? 6 : 0,
+    });
+    this.events.push({ type: 'spit', pos: from.clone(), kind });
+  }
+
+  // Tir d'un Écho (avec visée anticipée et salve éventuelle).
+  _fire(s, player, toP) {
+    const sh = s.T.shot;
+    const from = s.pos.clone().add(new THREE.Vector3(0, (s.T.move === 'float' ? 0.45 : 0.6) * s.T.scale, 0));
+    const lead = sh.kind === 'bolt' ? 0.25 : 0.45;
+    const aim = player.pos.clone().add(new THREE.Vector3(player.vel.x * lead, 0.8, player.vel.z * lead));
+    const n = sh.count || 1;
+    const side = new THREE.Vector3(-toP.z, 0, toP.x).normalize();
+    for (let k = 0; k < n; k++) {
+      const off = n === 1 ? 0 : (k - (n - 1) / 2) * (sh.spread || 2);
+      this._shoot(from, aim.clone().addScaledVector(side, off), sh.speed * Math.sqrt(this.diff.speed / BUFF.speed) * 1.1, {
+        kind: sh.kind,
+        color: sh.color ?? s.T.color,
+        dmg: Math.round(sh.dmg * this.diff.dmg),
+      });
+    }
   }
 
   update(dt, player, ctx) {
@@ -332,14 +404,25 @@ export class SlimeManager {
         this._groundMove(s, toP, dist, aggro, sdt, rooted, 0);
       }
 
-      // Tir (cracheur, boss)
-      if (s.T.ranged && aggro && !rooted) {
-        s.shootCd -= sdt;
-        if (s.shootCd <= 0 && dist < 24 && dist > 4) {
-          this._shoot(s.pos.clone().add(new THREE.Vector3(0, 0.6 * s.T.scale, 0)), player.pos.clone().add(new THREE.Vector3(player.vel.x * 0.4, 0.8, player.vel.z * 0.4)));
-          s.shootCd = 2.6 / Math.sqrt(this.diff.speed);
+      // Attaques à distance : tous les Échos tirent, après un bref éclat
+      // d'avertissement.
+      const sh = s.T.shot;
+      if (sh && !rooted && player.alive) {
+        if (s.windT >= 0) {
+          s.windT += sdt;
+          if (s.windT >= WINDUP) {
+            s.windT = -1;
+            if (aggro) this._fire(s, player, toP);
+          }
+        } else if (aggro) {
+          s.shootCd -= sdt;
+          if (s.shootCd <= 0 && dist < sh.range && dist > 3.5) {
+            s.windT = 0;
+            const enrage = s.T.boss && s.hp < s.maxHp * 0.5 ? 0.7 : 1;
+            s.shootCd = (sh.cd * enrage * (0.85 + Math.random() * 0.3)) / Math.sqrt(this.diff.speed / BUFF.speed);
+          }
         }
-      }
+      } else if (rooted) s.windT = -1;
       if (s.T.boss) this._bossAI(s, player, toP, dist, sdt);
 
       // Contact
@@ -360,24 +443,26 @@ export class SlimeManager {
       s.object.position.copy(s.pos);
       if (mv === 'float') s.object.position.y += Math.sin(elapsed * 4 + s.phase) * 0.15;
       const base = s.T.glow ?? 0.18;
-      s.mat.emissiveIntensity = s.hurtT > 0 ? 1.8 : rooted ? 0.05 : base + night * 0.25 + (this.slowT > 0 ? 0.5 : 0);
+      s.mat.emissiveIntensity = s.hurtT > 0 ? 1.8 : rooted ? 0.05 : s.windT >= 0 ? 1.2 + 1.6 * (s.windT / WINDUP) : base + night * 0.25 + (this.slowT > 0 ? 0.5 : 0);
     }
 
     // Projectiles des cracheurs
     for (let i = this.globs.length - 1; i >= 0; i--) {
       const g = this.globs[i];
       g.life -= sdt;
-      g.v.y -= 18 * sdt;
+      g.v.y -= g.gravity * sdt;
       g.m.position.addScaledVector(g.v, sdt);
+      if (g.spin) { g.m.rotation.x += g.spin * sdt; g.m.rotation.z += g.spin * 0.7 * sdt; }
       const p = g.m.position;
       let done = g.life <= 0;
-      if (!done && player.alive && p.distanceTo(player.pos.clone().add(new THREE.Vector3(0, 0.9, 0))) < 0.9) {
-        player.damage(Math.round(11 * this.diff.dmg), p);
+      if (!done && player.alive && p.distanceTo(player.pos.clone().add(new THREE.Vector3(0, 0.9, 0))) < g.radius) {
+        player.damage(g.dmg, p);
         done = true;
       }
       if (!done && (p.y < T.heightAt(p.x, p.z) || p.y < SEA_LEVEL - 0.5)) done = true;
       if (done) {
-        this.events.push({ type: 'splat', pos: p.clone() });
+        if (g.kind === 'rock') this.events.push({ type: 'slam', pos: p.clone(), radius: 2 });
+        this.events.push({ type: 'splat', pos: p.clone(), color: g.color });
         this.scene.remove(g.m);
         this.globs.splice(i, 1);
       }
@@ -437,7 +522,7 @@ export class SlimeManager {
       const sp = aggro ? s.T.speed : s.T.speed * 0.4;
       s.vel.set(dir.x * sp, aggro ? 7 : 5, dir.z * sp);
       s.onGround = false;
-      s.hopTimer = aggro ? 0.55 + Math.random() * 0.3 + keep : 1.2 + Math.random() * 1.5;
+      s.hopTimer = aggro ? 0.36 + Math.random() * 0.22 + keep * 0.7 : 1.2 + Math.random() * 1.5;
       s.squash = -0.3;
       s.object.rotation.y = Math.atan2(dir.x, dir.z);
     }
