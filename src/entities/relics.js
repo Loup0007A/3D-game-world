@@ -71,6 +71,15 @@ export class Relics {
   }
 
   get total() { return this.items.length; }
+
+  // Relique déjà prise (partie chargée) : on éteint son cristal.
+  markTaken(i) {
+    const r = this.items[i];
+    if (!r || r.taken) return;
+    r.taken = true;
+    r.guarded = true;
+    r.gem.visible = r.ring.visible = r.beam.visible = false;
+  }
   get collected() { return this.items.filter((r) => r.taken).length; }
 
   nearest(p) {
@@ -226,10 +235,16 @@ export class Orbs {
     this.scene.add(m);
     this.items.push({ m, base: m.position.y, t: 0 });
   }
-  update(dt, t, player, onPick) {
+  update(dt, t, player, onPick, magnet = 0) {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const o = this.items[i];
       o.t += dt;
+      // Aimant : l'orbe file vers le joueur.
+      const target = player.pos.clone().add(new THREE.Vector3(0, 0.8, 0));
+      if (magnet && o.m.position.distanceTo(target) < magnet) {
+        o.m.position.lerp(target, 1 - Math.exp(-dt * 5));
+        o.base = o.m.position.y;
+      }
       o.m.position.y = o.base + Math.sin(t * 3 + i) * 0.15;
       o.m.rotation.y += dt * 2;
       const d = o.m.position.distanceTo(player.pos.clone().add(new THREE.Vector3(0, 0.8, 0)));

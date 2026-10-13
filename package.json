@@ -4,7 +4,7 @@
   "description": "Jeu d'exploration 3D procédural : îles nées du bruit fractal, reliques, portail et slimes.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/routes.mjs",
     "preview": "vite preview",
     "build:single": "vite build --mode single"
   },

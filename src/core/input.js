@@ -135,6 +135,11 @@ export class Input {
     bind('touch-dash', 'KeyE');
     bind('touch-bolt', 'KeyR');
     bind('touch-nova', 'KeyC');
+    bind('touch-shield', 'Digit1');
+    bind('touch-heal', 'Digit2');
+    bind('touch-lightning', 'Digit3');
+    bind('touch-chrono', 'Digit4');
+    bind('touch-roots', 'Digit5');
   }
 
   down(...codes) { return this.enabled && codes.some((c) => this.keys.has(c)); }

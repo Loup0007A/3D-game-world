@@ -93,12 +93,15 @@ export class Hud {
 
     // Indice : relique la plus proche ou portail.
     let target = null, label = '';
-    if (portal.active) {
+    if (state.target) {
+      target = state.target.pos;
+      label = state.target.label;
+    } else if (portal.active) {
       target = portal.pos;
       label = 'Portail ouvert';
     } else {
       const n = relics.nearest(player.pos);
-      if (n) { target = n.relic.pos; label = `Relique · ${n.relic.biome}`; }
+      if (n) { target = n.relic.pos; label = `${state.relicName || 'Relique'} · ${n.relic.biome}`; }
     }
     if (target) {
       const dx = target.x - player.pos.x, dz = target.z - player.pos.z;

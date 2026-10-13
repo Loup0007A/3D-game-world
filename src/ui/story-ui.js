@@ -1,5 +1,5 @@
 import { SKILLS, SKILL_ORDER } from '../game/skills.js';
-import { CHAPTERS, FREE_CHAPTER, GUIDE, chapterFor, chapterNumeral } from '../game/story.js';
+
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -25,7 +25,7 @@ export class StoryUI {
   }
 
   // ─── Répliques de Lueur (non bloquantes) ───────────────────────────
-  say(text, who = GUIDE) {
+  say(text, who = this.guide || 'Lueur') {
     if (this.queue.some((q) => q.text === text) || this.current?.text === text) return;
     this.queue.push({ text, who });
   }
@@ -78,10 +78,9 @@ export class StoryUI {
     this.memTimer = setTimeout(() => this.mem.classList.remove('show'), 4500 + fragment.text.length * 40);
   }
 
-  chapterCard(level) {
-    const ch = chapterFor(level);
-    this.chapter.querySelector('.ch-num').textContent = level <= CHAPTERS.length ? `Chapitre ${chapterNumeral(level)}` : `Monde ${level}`;
-    this.chapter.querySelector('.ch-title').textContent = ch.title;
+  chapterCard(num, title) {
+    this.chapter.querySelector('.ch-num').textContent = `Chapitre ${num}`;
+    this.chapter.querySelector('.ch-title').textContent = title;
     this.chapter.classList.remove('show');
     void this.chapter.offsetWidth;
     this.chapter.classList.add('show');
@@ -103,7 +102,7 @@ export class StoryUI {
       this.bar.appendChild(el);
       this.slots[id] = el;
     }
-    for (const id of ['dash', 'bolt', 'nova']) {
+    for (const id of ['dash', 'bolt', 'nova', 'shield', 'heal', 'lightning', 'chrono', 'roots']) {
       const b = $(`touch-${id}`);
       if (b) b.classList.toggle('locked', !skills.has(id));
     }
@@ -185,33 +184,31 @@ export class StoryUI {
   }
 
   // ─── Journal ──────────────────────────────────────────────────────
-  renderJournal({ fragments, skills, level, upgrades }) {
+  renderJournal({ story, fragments, skills, chapter, upgrades }) {
     const body = this.journal.querySelector('.journal-body');
-    let html = '<div class="j-col"><h3>Souvenirs</h3>';
-    const maxCh = Math.max(level, 1);
-    for (let lv = 1; lv <= Math.min(maxCh, CHAPTERS.length); lv++) {
-      const ch = CHAPTERS[lv - 1];
-      html += `<div class="j-ch"><div class="j-ch-title">${chapterNumeral(lv)} · ${esc(ch.title)}</div>`;
+    this.journal.querySelector('h2').textContent = `Journal de ${story.hero}`;
+    let html = `<div class="j-col"><h3>${esc(story.title)}</h3>`;
+    for (let c = 1; c <= Math.max(chapter, 1); c++) {
+      const ch = story.chapters[c - 1];
+      if (!ch) break;
+      html += `<div class="j-ch"><div class="j-ch-title">${c} · ${esc(ch.title)}</div>`;
       ch.fragments.forEach((f, i) => {
-        const got = fragments.some((x) => x.level === lv && x.idx === i);
+        const got = fragments.some((x) => x.level === c && x.idx === i);
         html += got
           ? `<div class="j-frag"><b>${esc(f.title)}</b><span>${esc(f.text)}</span></div>`
-          : '<div class="j-frag lost"><b>???</b><span>Souvenir encore perdu.</span></div>';
+          : '<div class="j-frag lost"><b>???</b><span>Pas encore trouvé.</span></div>';
       });
       html += '</div>';
     }
-    const free = fragments.filter((x) => x.level > CHAPTERS.length).length;
-    if (free) html += `<div class="j-ch"><div class="j-ch-title">∞ · ${esc(FREE_CHAPTER.title)}</div><div class="j-frag"><b>${free} rêve${free > 1 ? 's' : ''} libre${free > 1 ? 's' : ''}</b></div></div>`;
     html += '</div><div class="j-col"><h3>Compétences</h3>';
     for (const id of SKILL_ORDER) {
       const def = SKILLS[id];
-      html += skills.has(id)
-        ? `<div class="j-skill"><div class="sk-ico">${def.icon}</div><div><b>${esc(def.name)}</b> <kbd>${esc(def.key)}</kbd><span>${esc(def.desc)}</span></div></div>`
-        : '<div class="j-skill lost"><div class="sk-ico">?</div><div><b>???</b><span>Un souvenir te la rendra.</span></div></div>';
+      if (skills.has(id)) html += `<div class="j-skill"><div class="sk-ico">${def.icon}</div><div><b>${esc(def.name)}</b> <kbd>${esc(def.key)}</kbd><span>${esc(def.desc)}</span></div></div>`;
+      else if (story.plan.unlocks.includes(id)) html += '<div class="j-skill lost"><div class="sk-ico">?</div><div><b>???</b><span>Une relique te la rendra.</span></div></div>';
     }
     const up = Object.entries(upgrades).filter(([, v]) => v > 0);
     if (up.length) {
-      const names = { hp: 'Vie max', st: 'Endurance max', cd: 'Recharges', bolt: 'Dégâts de l\'Éclat', nova: 'Rayon de l\'Onde' };
+      const names = { hp: 'Vie max', st: 'Endurance max', cd: 'Recharges', bolt: 'Dégâts de l\'Éclat', nova: 'Rayon de l\'Onde', melee: 'Dégâts du bâton' };
       html += '<h3>Forces</h3><div class="j-ups">' + up.map(([k, v]) => `<span>${names[k]} ×${v}</span>`).join('') + '</div>';
     }
     html += '</div>';

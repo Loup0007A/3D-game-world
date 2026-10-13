@@ -121,7 +121,7 @@ function buildModel() {
   const legL = mkLeg(-1);
   const legR = mkLeg(1);
 
-  return { root, hips, torso, head, armL, armR, legL, legR, staff, gem, tail, tail2, wings, crystalMat: M.crystal };
+  return { root, hips, torso, head, armL, armR, legL, legR, staff, gem, tail, tail2, wings, crystalMat: M.crystal, mats: M };
 }
 
 const WALK = 5.2;
@@ -148,7 +148,12 @@ export class Player {
     this.alive = true;
 
     // Compétences de déplacement (débloquées par l'histoire).
-    this.abilities = { dash: false, doubleJump: false, glide: false };
+    this.abilities = { dash: false, doubleJump: false, glide: false, slam: false, tripleJump: false, waterWalk: false, secondWind: false };
+    this.shieldT = 0;
+    this.regen = 2.5;
+    this.meleeDmg = 1;
+    this.slamming = false;
+    this.diffDmg = 1;
 
     this.onGround = false;
     this.swimming = false;
@@ -187,6 +192,15 @@ export class Player {
     this.events = [];
   }
 
+  // Tenue propre à chaque héros.
+  setOutfit(tunic, scarf, pants) {
+    const M = this.model.mats;
+    M.tunic.color.set(tunic);
+    M.tunicDark.color.set(tunic).multiplyScalar(0.7);
+    M.scarf.color.set(scarf);
+    M.pants.color.set(pants);
+  }
+
   spawn(p) {
     this.pos.copy(p).add(new THREE.Vector3(0, 1.5, 0));
     this.vel.set(0, 0, 0);
@@ -196,11 +210,19 @@ export class Player {
     this.alive = true;
     this.dashT = 0;
     this.gliding = false;
+    this.slamming = false;
+    this.shieldT = 0;
+    this.invuln = 1;
     this.object.visible = true;
   }
 
   damage(amount, from) {
     if (this.invuln > 0 || !this.alive) return false;
+    if (this.shieldT > 0) {
+      this.invuln = 0.3;
+      this.events.push({ type: 'shieldHit' });
+      return false;
+    }
     this.health = Math.max(this.health - amount, 0);
     this.lastDamage = performance.now() / 1000;
     this.invuln = 0.6;
@@ -216,7 +238,18 @@ export class Player {
   }
 
   startAttack() {
-    if (this.attackCooldown > 0 || !this.alive || this.dashT > 0) return false;
+    if (!this.alive || this.dashT > 0) return false;
+    // Frappe céleste : plongeon depuis les airs.
+    if (this.abilities.slam && !this.onGround && !this.swimming && this.airTime > 0.15 && !this.slamming) {
+      this.slamming = true;
+      this.vel.y = -34;
+      this.vel.x *= 0.3; this.vel.z *= 0.3;
+      this.minAirVy = 0;
+      this.gliding = false;
+      this.events.push({ type: 'slamStart' });
+      return true;
+    }
+    if (this.attackCooldown > 0) return false;
     this.attackT = 0;
     this.attackCooldown = 0.55;
     this.attackHitDone = false;
@@ -258,7 +291,9 @@ export class Player {
     const ground = terrain.heightAt(this.pos.x, this.pos.z);
     const surface = water.surfaceAt(this.pos.x, this.pos.z, elapsed);
     const deep = surface - ground > 1.25;
-    this.swimming = deep && this.pos.y < surface - 0.35;
+    // Pas sur l'eau : en courant, la surface porte.
+    this.onWater = this.abilities.waterWalk && deep && input.down('ShiftLeft', 'ShiftRight') && this.stamina > 0 && this.pos.y > surface - 0.6 && this.alive;
+    this.swimming = deep && this.pos.y < surface - 0.35 && !this.onWater;
 
     const wantRun = input.down('ShiftLeft', 'ShiftRight') && moving && this.staminaLock <= 0;
     this.running = wantRun && this.stamina > 0;
@@ -341,7 +376,7 @@ export class Player {
         this.jumpBuffer = 0;
         this.stamina = Math.max(this.stamina - 5, 0);
         this.events.push({ type: 'jump' });
-      } else if (jumpPressed && !this.onGround && this.abilities.doubleJump && this.airJumps < 1 && this.airTime > 0.08) {
+      } else if (jumpPressed && !this.onGround && this.abilities.doubleJump && this.airJumps < (this.abilities.tripleJump ? 2 : 1) && this.airTime > 0.08 && !this.slamming) {
         this.vel.y = 10.5;
         this.airJumps++;
         this.jumpBuffer = 0;
@@ -351,7 +386,9 @@ export class Player {
         this.events.push({ type: 'doubleJump' });
       }
       const holdJump = input.down('Space');
-      if (!this.onGround && this.abilities.glide && holdJump && this.vel.y < -1 && this.stamina > 0 && this.alive) {
+      if (this.slamming) {
+        this.vel.y = Math.min(this.vel.y, -34);
+      } else if (!this.onGround && this.abilities.glide && holdJump && this.vel.y < -1 && this.stamina > 0 && this.alive) {
         this.gliding = true;
         this.vel.y = damp(this.vel.y, -2.2, 8, dt);
         this.minAirVy = 0; // pas de dégâts de chute en planant
@@ -375,11 +412,18 @@ export class Player {
     this.pos.z = clamp(this.pos.z, -lim, lim);
     vegetation.resolve(this.pos, this.radius);
 
-    const gNew = terrain.heightAt(this.pos.x, this.pos.z);
+    let gNew = terrain.heightAt(this.pos.x, this.pos.z);
+    if (this.onWater) gNew = Math.max(gNew, water.surfaceAt(this.pos.x, this.pos.z, elapsed));
     if (this.pos.y <= gNew) {
+      if (this.slamming) {
+        this.slamming = false;
+        this.minAirVy = 0;
+        this.landDip = 0.35;
+        this.events.push({ type: 'slamLand', pos: new THREE.Vector3(this.pos.x, gNew, this.pos.z) });
+      }
       if (!this.onGround && !this.swimming) {
         const impact = -this.minAirVy;
-        if (impact > 21) this.damage((impact - 21) * 4.5);
+        if (impact > 21) this.damage((impact - 21) * 4.5 * this.diffDmg);
         if (this.airTime > 0.2) {
           this.events.push({ type: 'land', impact });
           this.landDip = clamp(impact / 40, 0.05, 0.32);
@@ -410,9 +454,10 @@ export class Player {
     }
 
     // ── Endurance et vie ──
-    if (this.running) this.stamina -= (this.swimming ? 14 : 13) * dt;
+    const sw = this.abilities.secondWind;
+    if (this.running) this.stamina -= (this.swimming ? 14 : this.onWater ? 16 : 13) * (sw ? 0.6 : 1) * dt;
     else if (this.swimming) this.stamina -= 3.5 * dt;
-    else if (!this.gliding && this.dashT <= 0) this.stamina += (moving ? 18 : 28) * dt;
+    else if (!this.gliding && this.dashT <= 0) this.stamina += (moving ? 18 : 28) * (sw ? 1.5 : 1) * dt;
     if (this.stamina <= 0) {
       this.stamina = 0;
       if (!this.swimming) this.staminaLock = 1.2;
@@ -424,7 +469,7 @@ export class Player {
       this.lastDamage = now;
       if (this.health <= 0 && this.alive) { this.health = 0; this.alive = false; this.events.push({ type: 'death' }); }
     }
-    if (this.alive && now - this.lastDamage > 6) this.health = Math.min(this.health + 2.5 * dt, this.maxHealth);
+    if (this.alive && now - this.lastDamage > 6) this.health = Math.min(this.health + this.regen * dt, this.maxHealth);
 
     this.speed2D = Math.hypot(this.vel.x, this.vel.z);
 
@@ -551,6 +596,11 @@ export class Player {
       armL = -0.2; armR = -0.2; armLz = 1.35; armRz = -1.35; elbowL = elbowR = -0.1;
       thighL = 0.25; thighR = 0.15; kneeL = 0.3; kneeR = 0.4;
       headPitch = -0.45;
+    }
+    if (this.slamming) {
+      lean = 0.9; headPitch = -0.6;
+      armL = -2.6; armR = -2.6; elbowL = elbowR = -0.2; armLz = 0.3; armRz = -0.3;
+      thighL = thighR = -0.6; kneeL = kneeR = 1.2;
     }
     if (this.dashT > 0) {
       lean = 0.75;

@@ -1,26 +1,80 @@
 # Mondes Vivants
 
-Jeu d'aventure 3D dans le navigateur. Chaque île naît du **bruit fractal** : relief, climat, biomes, forêts, poissons, tout vient d'une seule graine.
+Jeu d'aventure 3D dans le navigateur. **100 histoires**, chacune sur 10 îles nées du **bruit fractal**, de plus en plus dures, avec de plus en plus de compétences.
 
-> Un vieil homme s'est endormi, et ses rêves sont devenus des îles. Il oublie peu à peu, et la Brume ronge ses souvenirs. Tu es **Ilo**, réveillée devant une arche de pierre avec un bâton dont le cristal parle : **Lueur**. Retrouve les éclats de mémoire du Rêveur, île après île, et découvre qui tu es.
-
-**▶ Jouer en ligne : https://loup0007a.github.io/3D-game-world/**
+**▶ Liste des histoires : https://loup0007a.github.io/3D-game-world/**
+**▶ Une histoire : https://loup0007a.github.io/3D-game-world/1/ … /100/**
 
 | | |
 |---|---|
 | ![Matin](docs/matin.png) | ![Slimes](docs/slimes.png) |
 | ![Nage au crépuscule](docs/nage.png) | ![Carte](docs/carte.png) |
 
+## Intégrer dans un autre site (iframe)
+
+```html
+<iframe src="https://loup0007a.github.io/3D-game-world/12/"
+        allow="fullscreen; autoplay; gamepad"
+        style="width:100%; aspect-ratio:16/9; border:0"></iframe>
+```
+
+- Cliquer dans le jeu capture la souris (Échap la libère et met en pause).
+- `allow="fullscreen"` active le bouton Plein écran.
+- Pas d'attribut `sandbox` (sinon il faut `allow-scripts allow-same-origin allow-pointer-lock`).
+- Chaque histoire se sauvegarde à part, dans le navigateur. Certains navigateurs bloquent le stockage dans les iframes d'un autre site : le jeu marche quand même, sans sauvegarde.
+- Le jeu envoie des messages à la page parente :
+
+```js
+window.addEventListener('message', (e) => {
+  if (e.data?.source !== 'mondes-vivants') return;
+  // e.data.type : 'start' | 'chapter' | 'complete'
+  // e.data.story, e.data.chapter, e.data.ending, e.data.score, e.data.minutes
+});
+```
+
+## Les 100 histoires
+
+Chaque histoire a son héros, son guide, son fléau, ses ennemis, son monde, une révélation au chapitre 7 et deux fins au choix. Les débuts, révélations et fins sont écrits à la main (`src/game/stories/seeds.js`). Les textes des chapitres sont assemblés à partir de modèles (`templates.js`), donc des phrases reviennent d'une histoire à l'autre. L'histoire 1 reprend les textes écrits pour le premier jeu.
+
+Structure d'une histoire :
+- intro, puis **10 chapitres** (une île chacun) ;
+- **5 à 9 reliques** par île (70 en tout), chacune avec un fragment d'histoire ;
+- quand toutes les reliques sont prises, un **gardien** (boss) apparaît au portail : il bondit (cercle rouge), invoque des renforts, puis crache des salves à mi-vie ;
+- au chapitre 10, le gardien final, puis le choix de fin et l'écran « Histoire suivante ».
+
+Durée estimée : **2 h 55 à 3 h 15** selon l'histoire (calcul à partir du nombre de reliques et des combats, pas mesuré en jouant).
+
+### Difficulté
+
+| | Histoire 1 | Histoire 50 | Histoire 100 |
+|---|---|---|---|
+| Vie des ennemis | ×1 | ×2,1 | ×3,2 → ×4 |
+| Dégâts des ennemis | ×1 | ×1,7 | ×2,4 → ×2,65 |
+| Nombre d'ennemis | ×1 | ×1,6 | ×2,2 → ×2,55 |
+| Régénération | 2,5/s | 1,75/s | 1/s |
+
+Nouveaux ennemis : feu follet (dès l'histoire 6), cracheur (16), golem (30), ombre (48). Ils arrivent quelques histoires plus tôt dans les derniers chapitres.
+
+### Compétences par histoire
+
+| | Compétences en tout | Au départ | À retrouver |
+|---|---|---|---|
+| Histoire 1 | 5 | 0 | 5 |
+| Histoire 50 | 10 | 4 | 6 |
+| Histoire 100 | 16 | 8 | 8 |
+
+Une compétence revient avec la première relique de chaque chapitre. Ensuite, une relique sur deux donne une force (vie, endurance, recharges, dégâts). Les histoires avancées donnent aussi des forces dès le départ.
+
 ## Jouer
 
 ```bash
 npm install
 npm run dev        # serveur local
-npm run build      # build dans dist/ (GitHub Pages)
+npm run build      # dist/ + dist/1 … dist/100 (GitHub Pages)
 npm run build:single  # un seul fichier HTML jouable hors ligne, dans dist-single/
 ```
 
-Une graine se partage par l'URL : `?seed=424242`.
+En local (`npm run dev`) ou avec le fichier unique, une histoire s'ouvre avec `?story=12`.
 
 ## Contrôles
 
@@ -35,44 +89,37 @@ Une graine se partage par l'URL : `?seed=424242`.
 | Ruée | E |
 | Éclat (projectile) | Clic droit ou R |
 | Onde de choc | C |
-| Double saut | Espace en l'air |
+| Bouclier · Souffle · Foudre · Ralenti · Racines | 1 · 2 · 3 · 4 · 5 |
+| Double / triple saut | Espace en l'air |
 | Planeur | Maintenir Espace en chute |
+| Frappe céleste | Frapper en l'air |
+| Pas sur l'eau | Courir sur l'eau |
 | Carte | M |
 | Journal | J |
 | Pause | Échap |
 
 Sur mobile : joystick à gauche, glisser à droite pour la caméra, boutons d'action.
 
-## Histoire
+## Les 16 compétences
 
-Cinq chapitres, un par île : **L'Éveil**, **Les Échos**, **La Brume**, **Le Nom**, **Le Réveil**. Chaque éclat de mémoire raconte un fragment de la vie du Rêveur (34 en tout), et Lueur commente ton voyage. À la fin, un choix : réveiller le Rêveur, ou continuer à rêver. Le second ouvre un mode sans fin.
-
-La partie se sauvegarde toute seule (navigateur) : bouton **Continuer** sur l'écran titre. Le journal (J) garde les souvenirs trouvés et les compétences.
-
-## Compétences
-
-Elles reviennent avec les souvenirs du chapitre I, une par éclat :
-
-| | Compétence | Effet |
-|---|---|---|
-| ➶ | Ruée | Bond rapide, invulnérable, possible en l'air |
-| ⇈ | Double saut | Second saut avec salto |
-| ✦ | Éclat | Projectile de cristal, visée assistée vers l'Écho le plus proche du viseur |
-| 🜁 | Planeur | Ailes de lumière, plus de dégâts de chute |
-| ◎ | Onde | Onde de choc qui repousse et blesse tous les Échos autour |
-
-Ensuite, chaque éclat donne une force : vie max, endurance max, recharges, dégâts de l'Éclat, rayon de l'Onde.
-
-## Gameplay
-
-- **Éclats de mémoire** : 5 au premier monde, un de plus par monde (max 8). Une flèche en haut de l'écran pointe le plus proche. Chacun rend 30 PV.
-- **Gardiens** : approcher une relique réveille des slimes qui la protègent.
-- **Portail** : quand toutes les reliques sont prises, le portail du point de départ s'ouvre vers un nouveau monde plus dur.
-- **Échos (slimes)** : la nuit partout, le jour seulement dans les marais. Vert, violet (marais), givré (neige, montagne), roi rouge (rare, costaud). Ils lâchent parfois un orbe de soin.
-- **Endurance** : courir, sauter et nager la vident. Épuisé dans l'eau profonde = noyade lente.
-- **Chute** : tomber de haut fait mal.
-- **Cycle jour/nuit** : la lanterne du bâton s'allume la nuit. Vitesse du temps réglable dans la pause.
-- **Score** : relique 100, slime 10 à 40, portail 250 × monde. Le record reste dans le navigateur.
+| | Compétence | Touche | Effet |
+|---|---|---|---|
+| ➶ | Ruée | E | Bond rapide, invulnérable, possible en l'air |
+| ⇈ | Double saut | Espace ×2 | Second saut avec salto |
+| ✦ | Éclat | Clic droit / R | Projectile, visée assistée vers l'ennemi le plus proche du viseur |
+| 🜁 | Planeur | Espace maintenu | Ailes de lumière, plus de dégâts de chute |
+| ◎ | Onde | C | Repousse et blesse tous les ennemis autour |
+| ⛉ | Bouclier | 1 | Absorbe tous les coups pendant 4 s |
+| ⤓ | Frappe céleste | Frapper en l'air | Plongeon et onde au sol |
+| ✚ | Souffle | 2 | Rend 40 % de la vie en 2 s |
+| ◈ | Compagnon | auto | Un esprit tire sur les ennemis proches |
+| ϟ | Foudre | 3 | Éclair qui saute sur 5 ennemis |
+| ⇮ | Triple saut | Espace ×3 | Troisième saut en l'air |
+| ⧗ | Ralenti | 4 | Ennemis ralentis 5 s |
+| ≈ | Pas sur l'eau | Courir | La surface de l'eau porte en courant |
+| ❦ | Racines | 5 | Immobilise les ennemis autour 3 s |
+| ⊛ | Aimant | auto | Les orbes de soin viennent à toi |
+| ∞ | Second souffle | auto | Courir fatigue moins, l'endurance revient plus vite |
 
 ## Comment le monde est généré
 
@@ -96,15 +143,18 @@ Three.js r169 · ciel atmosphérique (`Sky`) · ombres douces qui suivent le jou
 
 ```
 src/
-  main.js              boucle, états, histoire, sauvegarde, événements
-  game/story.js        textes : intro, 5 chapitres, éclats, fin
-  game/skills.js       compétences, projectiles, onde de choc
+  main.js              boucle, états, routes, sauvegarde, gardiens, événements
+  game/stories/        100 graines, modèles de texte, générateur, difficulté
+  game/story.js        textes écrits à la main de l'histoire 1
+  game/skills.js       16 compétences
   core/                noise, input, caméra 3e personne, audio synthétisé
   world/               terrain + biomes, eau, ciel, végétation
-  entities/            joueur, slimes, reliques + portail, faune, particules
+  entities/            joueur, ennemis + gardiens, reliques + portail, faune, particules
   ui/hud.js            barres, minimap, carte, messages
   ui/story-ui.js       dialogues de Lueur, cartes de mémoire, journal, barre de compétences
 ```
+
+`scripts/routes.mjs` crée une page par histoire après le build.
 
 Aucun asset externe : modèles en géométrie procédurale, sons en WebAudio.
 
