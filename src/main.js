@@ -499,6 +499,30 @@ $('menu-btn').addEventListener('click', () => { save(); setState('title'); });
 $('journal-btn').addEventListener('click', () => openJournal());
 $('respawn-btn').addEventListener('click', () => respawn());
 
+// ─── Niveau Donjons (Puissance sur le S.I.D.) ──────────────────────
+// 10+ : le gardien récupère tous ses PV quand on meurt ou qu'on s'éloigne trop.
+// 50+ : chaque mort a une chance sur 2 de coûter un membre (simulation fermée).
+const DONJON = { healLevel: 10, leash: 70, injuryLevel: 50, injuryChance: 0.5 };
+const donjonLevel = sidPuissance;
+let injured = false;
+function rollInjury() {
+  if (!embedded || donjonLevel < DONJON.injuryLevel || Math.random() >= DONJON.injuryChance) return false;
+  injured = true;
+  clearInterval(respawnTimer);
+  try { window.parent.postMessage({ type: 'mv-injury', story: storyN, chapter }, '*'); } catch { /* parent inaccessible */ }
+  setTimeout(() => {
+    setState('dead');
+    $('dead').classList.add('hidden');
+    $('injury').classList.remove('hidden');
+  }, 900);
+  return true;
+}
+window.addEventListener('message', (e) => {
+  if (e.source !== window.parent || e.data?.type !== 'sid-injury') return;
+  const until = new Date(e.data.until);
+  if (!Number.isNaN(until.getTime())) $('injury-until').textContent = `Retour possible à ${until.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.`;
+});
+
 // Délai avant de pouvoir se relever après une mort.
 const RESPAWN_DELAY = 60; // secondes
 let respawnAt = 0;
@@ -572,8 +596,11 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('pagehide', () => { if (story && (state === 'playing' || state === 'paused')) save(); });
 
 function respawn() {
-  if (Date.now() < respawnAt) return;
-  const kept = raid.active && slimes.boss ? { hp: slimes.boss.hp, maxHp: slimes.boss.maxHp } : null;
+  if (Date.now() < respawnAt || injured) return;
+  // En raid, le boss garde ses blessures ; seul, il ne les garde que sous le niveau 10.
+  const keepBoss = raid.active || donjonLevel < DONJON.healLevel;
+  const kept = keepBoss && slimes.boss ? { hp: slimes.boss.hp, maxHp: slimes.boss.maxHp } : null;
+  if (!keepBoss && slimes.boss && slimes.boss.hp < slimes.boss.maxHp) setTimeout(() => hud.toast('Le gardien a récupéré toutes ses forces.', 3500), 600);
   placeAtArch();
   slimes.clear();
   play();
@@ -762,6 +789,7 @@ function handleEvents() {
         break;
       case 'death':
         flags.deaths = (flags.deaths || 0) + 1;
+        if (rollInjury()) { sfx.death(); save(); break; }
         startRespawnCooldown();
         sfx.death();
         setTimeout(() => { if (!player.alive) { setState('dead'); updateRaidButton(); } }, 900);
@@ -1010,6 +1038,12 @@ function update(dt) {
       w.relics.update(dt, elapsed, player, onRelic, onRelicApproach);
       w.artifacts.update(dt, elapsed, player, onArtefact);
       raid.update(dt, player, slimes.boss);
+      // Niveau 10+ : s'éloigner du gardien lui rend ses forces.
+      const gb = slimes.boss;
+      if (gb && gb.dying < 0 && !raid.active && !helperRaid && donjonLevel >= DONJON.healLevel && gb.hp < gb.maxHp && gb.pos.distanceTo(player.pos) > DONJON.leash) {
+        gb.hp = gb.maxHp;
+        hud.toast('Tu t\'es trop éloigné : le gardien a récupéré toutes ses forces.', 3500);
+      }
       orbs.update(dt, elapsed, player, (p) => {
         player.health = Math.min(player.health + 25, player.maxHealth);
         sfx.heal();
