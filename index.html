@@ -184,6 +184,17 @@
       <h2>Évanoui…</h2>
       <p class="muted">Ce n'est qu'un rêve. Tu te réveilles devant l'arche. Tes souvenirs sont saufs.</p>
       <button id="respawn-btn" class="btn primary">Se relever</button>
+      <button id="raid-btn" class="btn hidden" style="margin-top:10px">⚔️ Demander de l'aide (raid)</button>
+      <p id="raid-note" class="muted hidden" style="margin-top:8px;font-size:13px"></p>
+    </div>
+  </div>
+
+  <!-- Raid : joueur venu aider -->
+  <div id="raid-join" class="overlay hidden">
+    <div class="panel">
+      <h2 id="raid-join-title">Appel à l'aide</h2>
+      <p id="raid-join-text" class="muted">Un membre affronte un gardien. Rejoins-le pour l'abattre ensemble.</p>
+      <button id="raid-join-btn" class="btn primary">Rejoindre le combat</button>
     </div>
   </div>
 

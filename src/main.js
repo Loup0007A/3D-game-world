@@ -23,6 +23,7 @@ import { StoryUI } from './ui/story-ui.js';
 import { SkillSystem, SKILLS, UPGRADES } from './game/skills.js';
 import { sendResult, uid, passthroughParams, getEmail, setEmail, isEmail } from './game/report.js';
 import { getStory, storyMeta, difficulty, relicsFor, estimateMinutes, STORY_COUNT, CHAPTER_COUNT } from './game/stories/index.js';
+import { Raid, helperRaid, sidPuissance, embedded } from './game/raid.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -165,6 +166,7 @@ async function buildWorld(n, c, withLoading = true) {
   slimes = new SlimeManager(scene, terrain, diff);
   slimes.playerDmgMul = artefactDmgMul();
   slimes.godMode = !!divine.god;
+  bossDamageHook();
   await step(0.95, 'Presque prêt…');
 
   world = { seed, terrain, water, vegetation, fish, birds, relics, portal, spawn, artifacts };
@@ -204,7 +206,7 @@ function disposeWorld() {
 
 // ─── Sauvegarde (une par histoire) ─────────────────────────────────
 function save() {
-  if (!storyN) return;
+  if (!storyN || helperRaid) return; // un allié venu aider ne touche pas à sa propre sauvegarde
   const taken = world ? world.relics.items.map((r, i) => (r.taken ? i : -1)).filter((i) => i >= 0) : [];
   const artsTaken = world ? world.artifacts.takenIndices() : [];
   store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken, divine });
@@ -546,25 +548,130 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('pagehide', () => { if (story && (state === 'playing' || state === 'paused')) save(); });
 
 function respawn() {
+  const kept = raid.active && slimes.boss ? { hp: slimes.boss.hp, maxHp: slimes.boss.maxHp } : null;
   placeAtArch();
   slimes.clear();
   play();
-  ensureBoss();
+  const b = ensureBoss();
+  if (b && kept) { b.maxHp = kept.maxHp; b.hp = kept.hp; }
   if (!flags.firstDeath) { flags.firstDeath = true; ui.say(story.hints.firstDeath); }
 }
 
 // ─── Gardien du portail ────────────────────────────────────────────
+// Dragon : à partir de 90 de Puissance sur le S.I.D. (ou raid contre un dragon).
+const isDragon = () => (raid.active || helperRaid ? raid.dragon || !!helperRaid?.dragon : sidPuissance >= 90);
 function ensureBoss() {
   const w = world;
   if (!w || w.portal.active || w.relics.collected < w.relics.total || slimes.boss) return;
   const a = w.portal.group.rotation.y;
   const p = w.spawn.clone().add(new THREE.Vector3(-Math.sin(a), 0, -Math.cos(a)).multiplyScalar(10));
   p.y = w.terrain.heightAt(p.x, p.z);
-  const b = slimes.spawn('boss', p);
+  const dragon = isDragon();
+  const b = slimes.spawn(dragon ? 'dragon' : 'boss', p);
   b.guard = w.spawn.clone();
-  b.name = story.chapters[chapter - 1].boss;
+  b.name = dragon ? `Dragon · ${story.chapters[chapter - 1].boss}` : story.chapters[chapter - 1].boss;
   if (chapter === CHAPTER_COUNT) { b.T.scale *= 1.25; b.object.scale.setScalar(b.T.scale); }
+  if (raid.active) scaleRaidBoss(b);
+  return b;
 }
+
+// ─── Raid de boss à plusieurs ──────────────────────────────────────
+const raid = new Raid(scene);
+let raidBase = null; // PV max du boss pour un joueur seul
+// PV du boss : +60 % par allié présent.
+function scaleRaidBoss(b) {
+  if (!b || !raid.isHost) return;
+  if (!raidBase) raidBase = b.maxHp;
+  const max = Math.round(raidBase * (1 + 0.6 * raid.helpers));
+  if (max > b.maxHp) { b.hp += max - b.maxHp; b.maxHp = max; }
+}
+// Dégâts que l'on vient d'infliger au boss (pas encore pris en compte dans
+// l'état envoyé par l'hôte).
+const recentHits = [];
+let raidWon = false;
+function bossDamageHook() {
+  slimes.onBossDamage = (dmg) => {
+    if (!raid.active) return;
+    recentHits.push({ t: performance.now(), dmg });
+    raid.send('hit', { dmg: +dmg.toFixed(2) });
+  };
+}
+raid.on('joined', (d) => {
+  if (raid.isHost) {
+    hud.toast('⚔️ <b>Raid ouvert.</b> Les membres du S.I.D. sont prévenus : relève-toi, les renforts arrivent.', 6000);
+    $('raid-note').textContent = 'Appel envoyé ! Relève-toi : les alliés qui rejoignent le raid apparaîtront près du gardien.';
+    $('raid-note').classList.remove('hidden');
+    $('raid-btn').classList.add('hidden');
+    if (raid.dragon && slimes.boss && !slimes.boss.T.dragon) { /* le dragon dépend de la Puissance de l'hôte */ }
+  } else {
+    $('raid-join-title').textContent = `Raid de ${d.hostName || 'un membre'}`;
+    $('raid-join-text').textContent = `${raid.dragon ? 'Un dragon' : 'Un gardien'} garde l'île ${helperRaid.chapter} de « ${story.title} ». Abattez-le ensemble !`;
+  }
+  bossDamageHook();
+});
+raid.on('error', (msg) => {
+  hud.toast(`Raid impossible : ${esc(msg)}`, 5000);
+  $('raid-note').textContent = msg;
+  $('raid-note').classList.remove('hidden');
+  $('raid-btn').disabled = false;
+});
+raid.on('peers', (n, peer) => {
+  if (peer) hud.toast(`🛡️ <b>${esc(peer.name || 'Un allié')}</b> rejoint le combat !`, 3500);
+  scaleRaidBoss(slimes?.boss);
+});
+raid.on('hit', (dmg) => slimes?.remoteBossDamage(dmg));
+raid.on('boss', (b) => {
+  let boss = slimes?.boss;
+  if (!boss && helperRaid && !raidWon && world && state !== 'title' && state !== 'raid') boss = ensureBoss();
+  if (!boss || raidWon) return;
+  boss.maxHp = b.maxHp;
+  // L'hôte fait foi, moins nos coups qu'il n'a pas encore reçus.
+  const now = performance.now();
+  while (recentHits.length && now - recentHits[0].t > 500) recentHits.shift();
+  boss.hp = b.hp - recentHits.reduce((a, h) => a + h.dmg, 0);
+  boss.net = { pos: new THREE.Vector3(b.x, b.y, b.z), ry: b.ry, at: performance.now() };
+  if (boss.hp <= 0 && boss.dying < 0) slimes.kill(boss, true);
+});
+raid.on('won', () => {
+  const boss = slimes?.boss;
+  if (boss && boss.dying < 0) slimes.kill(boss, true);
+});
+$('raid-btn').addEventListener('click', () => {
+  $('raid-btn').disabled = true;
+  $('raid-note').textContent = 'Appel en cours…';
+  $('raid-note').classList.remove('hidden');
+  raid.request({ story: storyN, chapter, boss: slimes.boss?.name || 'Gardien' });
+});
+// Le bouton n'apparaît que si l'on est mort face au boss, dans le S.I.D.
+function updateRaidButton() {
+  const canAsk = embedded && !helperRaid && !raid.active && slimes?.boss && slimes.boss.dying < 0 && slimes.boss.pos.distanceTo(player.pos) < 90;
+  $('raid-btn').classList.toggle('hidden', !canAsk);
+  $('raid-btn').disabled = false;
+  if (!raid.active) $('raid-note').classList.add('hidden');
+}
+
+// Allié venu aider : île du boss, compétences de l'histoire jusqu'à ce chapitre.
+async function startHelperRaid() {
+  chapter = helperRaid.chapter;
+  if (builtFor !== `${storyN}:${chapter}`) await buildWorld(storyN, chapter);
+  artefacts = 0; divine = {};
+  applyStartKit();
+  for (const id of story.plan.unlocks.slice(0, chapter)) if (id && !skills.has(id)) skills.unlock(id, player);
+  applyArtefacts(); applyDivine();
+  world.relics.items.forEach((_, i) => world.relics.markTaken(i));
+  hud.markRelics(world.relics);
+  ui.buildBar(skills);
+  placeAtArch();
+  player.health = player.maxHealth;
+  ensureBoss();
+  bossDamageHook();
+  play();
+}
+$('raid-join-btn').addEventListener('click', async () => {
+  $('raid-join').classList.add('hidden');
+  sfx.init();
+  await startHelperRaid();
+});
 
 // ─── Fin de chapitre et fin d'histoire ─────────────────────────────
 async function nextWorld() {
@@ -631,7 +738,7 @@ function handleEvents() {
       case 'death':
         flags.deaths = (flags.deaths || 0) + 1;
         sfx.death();
-        setTimeout(() => { if (!player.alive) setState('dead'); }, 900);
+        setTimeout(() => { if (!player.alive) { setState('dead'); updateRaidButton(); } }, 900);
         break;
       case 'swing': sfx.swing(); break;
       case 'jump': sfx.jump(); break;
@@ -716,6 +823,19 @@ function handleEvents() {
 }
 
 function onBossDown() {
+  if (raid.active || helperRaid) raidWon = true;
+  if (raid.active) {
+    raid.send('won');
+    raid.won();
+    hud.toast('⚔️ <b>Raid gagné !</b> Le gardien est tombé sous vos coups.', 6000);
+  }
+  if (helperRaid) {
+    // L'allié a fini son travail : retour à la liste des histoires.
+    sfx.portalOpen();
+    setTimeout(() => { raid.leave(); location.href = hubLink(); }, 6000);
+    return;
+  }
+  setTimeout(() => raid.leave(), 3000);
   const w = world;
   w.portal.activate();
   sfx.portalOpen();
@@ -863,6 +983,7 @@ function update(dt) {
       slimes.update(dt, player, { night, elapsed });
       w.relics.update(dt, elapsed, player, onRelic, onRelicApproach);
       w.artifacts.update(dt, elapsed, player, onArtefact);
+      raid.update(dt, player, slimes.boss);
       orbs.update(dt, elapsed, player, (p) => {
         player.health = Math.min(player.health + 25, player.maxHealth);
         sfx.heal();
@@ -941,6 +1062,15 @@ function simulate(sec, keys = []) {
     return;
   }
   document.title = `${story.title} · Mondes Vivants`;
+  if (helperRaid) {
+    await buildWorld(storyN, helperRaid.chapter);
+    camera.position.set(world.spawn.x + 120, 60, world.spawn.z);
+    setState('raid');
+    $('raid-join').classList.remove('hidden');
+    loop();
+    raid.ready(helperRaid.id);
+    return;
+  }
   const s = readSave();
   await buildWorld(storyN, s ? s.chapter : 1);
   camera.position.set(world.spawn.x + 120, 60, world.spawn.z);
@@ -954,5 +1084,5 @@ function simulate(sec, keys = []) {
 window.__game = {
   get world() { return world; }, get slimes() { return slimes; }, get score() { return score; }, get chapter() { return chapter; },
   get state() { return state; }, get artefacts() { return artefacts; }, get divine() { return divine; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
-  story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES,
+  story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES, raid, startHelperRaid,
 };

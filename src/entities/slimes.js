@@ -24,7 +24,56 @@ export const TYPES = {
     shot: { kind: 'bolt', dmg: 14, cd: 2.6, range: 22, speed: 32, color: 0xb070ff } },
   boss: { color: 0xd23a5a, hp: 18, dmg: 20, scale: 3.4, speed: 4.6, score: 400, move: 'hop', crown: true, knockMul: 0.08, boss: true,
     shot: { kind: 'lob', dmg: 16, cd: 3.2, range: 40, speed: 20, count: 3, spread: 3 } },
+  // Dragon : gardien des joueurs dont la Puissance atteint 90. Vole, plonge
+  // sur sa cible et crache des gerbes de feu.
+  dragon: { color: 0x8a1424, hp: 34, dmg: 26, scale: 2.1, speed: 8, score: 1500, move: 'fly', knockMul: 0.04, boss: true, dragon: true,
+    shot: { kind: 'bolt', dmg: 15, cd: 2.6, range: 48, speed: 26, count: 5, spread: 2.2, color: 0xff6a1a } },
 };
+
+// Modèle du dragon (formes simples, ailes animées).
+function buildDragon(mat) {
+  const g = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2a0a10, roughness: 0.6, flatShading: true });
+  const wingMat = new THREE.MeshStandardMaterial({ color: 0x5a0d18, emissive: 0x300008, emissiveIntensity: 0.4, roughness: 0.7, side: THREE.DoubleSide, flatShading: true });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.75, 14, 10), mat);
+  body.scale.set(0.9, 0.8, 1.7);
+  body.position.y = 1.2;
+  body.castShadow = true;
+  g.add(body);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.38, 1.3, 8).rotateX(-Math.PI / 3), mat);
+  neck.position.set(0, 1.75, 1.35);
+  g.add(neck);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.36, 1.1, 6).rotateX(Math.PI / 2), mat);
+  head.position.set(0, 2.25, 2.15);
+  g.add(head);
+  for (const sx of [-1, 1]) {
+    const horn = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.6, 5), dark);
+    horn.position.set(sx * 0.2, 2.6, 1.85);
+    horn.rotation.x = -0.7;
+    g.add(horn);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffb020 }));
+    eye.position.set(sx * 0.2, 2.38, 2.3);
+    g.add(eye);
+  }
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.35, 2.6, 7).rotateX(-Math.PI / 2), mat);
+  tail.position.set(0, 1.05, -2.2);
+  g.add(tail);
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(0, 0); wingShape.lineTo(3.4, 0.5); wingShape.lineTo(2.6, -0.6); wingShape.lineTo(1.6, -0.3); wingShape.lineTo(0.9, -1.0); wingShape.lineTo(0, -0.7);
+  const wingGeo = new THREE.ShapeGeometry(wingShape).rotateX(-Math.PI / 2);
+  const wings = [];
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx * 0.5, 1.55, 0.3);
+    const w = new THREE.Mesh(wingGeo, wingMat);
+    w.scale.x = sx;
+    w.castShadow = true;
+    pivot.add(w);
+    g.add(pivot);
+    wings.push(pivot);
+  }
+  return { group: g, body, wings };
+}
 
 // Renfort général des Échos (équilibré pour rester jouable dès la 1re histoire).
 const BUFF = { hp: 1.3, dmg: 1.2, speed: 1.2, aggro: 1.25, density: 1.1 };
@@ -109,6 +158,20 @@ class Slime {
       emissiveIntensity: T.glow ?? 0.18,
       flatShading: !!T.stone,
     });
+    if (T.dragon) {
+      this.mat.transparent = false;
+      this.mat.opacity = 1;
+      this.mat.roughness = 0.45;
+      this.mat.flatShading = true;
+      const d = buildDragon(this.mat);
+      this.body = d.body;
+      this.wings = d.wings;
+      this.object = d.group;
+      this.object.scale.setScalar(T.scale);
+      this.flyY = 9;
+      this.diveCd = 6;
+      return;
+    }
     const g = new THREE.Group();
     const body = new THREE.Mesh(T.stone ? golemGeo : type === 'wisp' ? wispGeo : bodyGeo, this.mat);
     body.castShadow = true;
@@ -174,12 +237,12 @@ export class SlimeManager {
   }
 
   spawn(type, pos) {
-    const mods = type === 'boss' ? { hp: this.diff.hp * (this.diff.bossHp ?? 1), dmg: this.diff.dmg, speed: Math.min(this.diff.speed, 1.3 * BUFF.speed) } : this.diff;
+    const mods = TYPES[type].boss ? { hp: this.diff.hp * (this.diff.bossHp ?? 1), dmg: this.diff.dmg, speed: Math.min(this.diff.speed, 1.3 * BUFF.speed) } : this.diff;
     const s = new Slime(type, pos, mods);
-    if (type === 'wisp') s.pos.y += s.flyY;
+    if (type === 'wisp' || type === 'dragon') s.pos.y += s.flyY;
     this.list.push(s);
     this.scene.add(s.object);
-    if (type === 'boss') { this.boss = s; s.summonCd = 8; s.leapCd = 5; s.volleyCd = 6; }
+    if (s.T.boss) { this.boss = s; s.summonCd = 8; s.leapCd = 5; s.volleyCd = 6; }
     return s;
   }
 
@@ -346,7 +409,48 @@ export class SlimeManager {
       const rooted = s.rootT > 0;
       const mv = s.T.move;
 
-      if (mv === 'float') {
+      if (s.T.boss && s.net && performance.now() - s.net.at < 1500) {
+        // Raid : le boss est dirigé par l'hôte, on suit sa position.
+        s.pos.lerp(s.net.pos, 1 - Math.exp(-dt * 8));
+        s.object.rotation.y = lerpAngle(s.object.rotation.y, s.net.ry, dt * 8);
+        s.onGround = mv !== 'fly';
+        if (s.wings) s.wings.forEach((w, k) => { w.rotation.z = (k ? -1 : 1) * Math.sin(elapsed * 6) * 0.6; });
+      } else if (mv === 'fly') {
+        // Dragon : tourne au-dessus de sa cible, plonge régulièrement.
+        s.diveCd -= sdt;
+        const ground = Math.max(T.heightAt(s.pos.x, s.pos.z), SEA_LEVEL);
+        let goal;
+        if (s.resting > 0) {
+          // Posé au sol après un piqué : c'est le moment de frapper.
+          s.resting -= sdt;
+          goal = new THREE.Vector3(s.pos.x, ground + 1.2, s.pos.z);
+        } else if (s.diving > 0) {
+          s.diving -= sdt;
+          goal = player.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
+          if (s.diving <= 0 || dist < 3) { s.diving = 0; s.resting = 2.8; }
+        } else {
+          const a = s.phase * 0.45;
+          const c = aggro ? player.pos : (s.guard || s.pos);
+          goal = new THREE.Vector3(c.x + Math.cos(a) * 14, Math.max(T.heightAt(c.x, c.z), SEA_LEVEL) + s.flyY, c.z + Math.sin(a) * 14);
+          if (aggro && s.diveCd <= 0 && dist < 40) {
+            s.diving = 1.6;
+            s.diveCd = 5 + Math.random() * 3;
+            this._ring(player.pos, 4, 0xff5020, 1.0);
+          }
+        }
+        const want = goal.sub(s.pos);
+        const l = want.length();
+        const sp = s.T.speed * (s.diving > 0 ? 2.4 : s.resting > 0 ? 0.3 : 1);
+        if (l > 0.01) want.multiplyScalar(Math.min(sp, l * 2) / l);
+        if (!rooted) s.vel.lerp(want, 1 - Math.exp(-sdt * 2.5));
+        else s.vel.multiplyScalar(0.8);
+        s.pos.addScaledVector(s.vel, sdt);
+        if (s.pos.y < ground + 1.2) s.pos.y = ground + 1.2;
+        s.onGround = false;
+        const face = aggro && s.diving <= 0 ? Math.atan2(toP.x, toP.z) : Math.atan2(s.vel.x, s.vel.z);
+        s.object.rotation.y = lerpAngle(s.object.rotation.y, face, sdt * 4);
+        s.wings.forEach((w, k) => { w.rotation.z = (k ? -1 : 1) * Math.sin(elapsed * (s.diving > 0 ? 3 : 6)) * (s.diving > 0 ? 0.2 : 0.65); });
+      } else if (mv === 'float') {
         // Feu follet : vole, tourne autour puis fonce.
         const target = player.pos.clone().add(new THREE.Vector3(0, 1.2, 0));
         const goal = aggro ? target.clone().add(new THREE.Vector3(Math.cos(s.phase * 1.7) * 3, Math.sin(s.phase * 2.3) * 0.8, Math.sin(s.phase * 1.7) * 3).multiplyScalar(s.attackCd > 0 ? 1.4 : 0.15)) : new THREE.Vector3(s.pos.x + Math.cos(s.wander) * 5, T.heightAt(s.pos.x, s.pos.z) + s.flyY, s.pos.z + Math.sin(s.wander) * 5);
@@ -441,7 +545,7 @@ export class SlimeManager {
 
       // Squash & stretch
       s.squash = lerp(s.squash, 0, 1 - Math.exp(-dt * 8));
-      const st = s.onGround ? s.squash : clamp(-s.vel.y * 0.04, -0.25, 0.25);
+      const st = s.T.dragon ? 0 : s.onGround ? s.squash : clamp(-s.vel.y * 0.04, -0.25, 0.25);
       const breathe = Math.sin(elapsed * 3 + s.wander) * 0.03;
       const sc = s.T.scale * (s.slamT >= 0 ? 1 + s.slamT * 0.25 : 1);
       s.object.scale.set(sc * (1 + st + breathe), sc * (1 - st - breathe), sc * (1 + st + breathe));
@@ -548,7 +652,8 @@ export class SlimeManager {
     if (s.rootT > 0) return;
     const enraged = s.hp < s.maxHp * 0.5;
     s.leapCd -= sdt; s.summonCd -= sdt; s.volleyCd -= sdt;
-    if (s.leapCd <= 0 && s.onGround && dist < 40) {
+    const netControlled = s.net && performance.now() - s.net.at < 1500;
+    if (!s.T.dragon && !netControlled && s.leapCd <= 0 && s.onGround && dist < 40) {
       // Grand bond vers le joueur, onde à l'atterrissage.
       const t = 1.1;
       s.vel.set(toP.x / t, 0.5 * 24 * t, toP.z / t);
@@ -604,7 +709,9 @@ export class SlimeManager {
   damage(s, dmg, from, knock = 9) {
     if (s.dying >= 0) return;
     // Bonus d'attaque du héros (artefacts cachés) ; « Dieu vivant » : un coup suffit.
-    s.hp -= this.godMode ? s.hp + 1 : dmg * this.playerDmgMul;
+    const dealt = this.godMode ? s.hp + 1 : dmg * this.playerDmgMul;
+    s.hp -= dealt;
+    if (s === this.boss && this.onBossDamage) this.onBossDamage(dealt);
     s.hurtT = 0.18;
     const k = knock * s.T.knockMul;
     if (k > 0.5 && s.rootT <= 0) {
@@ -617,6 +724,15 @@ export class SlimeManager {
     }
     if (s.hp <= 0) this.kill(s, true);
     else this.events.push({ type: 'slimeHurt', slime: s });
+  }
+
+  // Raid : dégâts infligés au boss par un allié (sans recul ni renvoi).
+  remoteBossDamage(dmg) {
+    const s = this.boss;
+    if (!s || s.dying >= 0) return;
+    s.hp -= dmg;
+    s.hurtT = 0.12;
+    if (s.hp <= 0) this.kill(s, true);
   }
 
   // Écho vivant le plus proche (compagnon, foudre).
