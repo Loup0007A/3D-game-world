@@ -265,3 +265,6 @@ a.btn { text-decoration: none; text-align: center; display: inline-block; }
 .skill.passive .sk-ico { font-size: 16px; }
 .skill.passive .sk-key { display: none; }
 @media (max-width: 900px) { #skillbar { max-width: calc(100vw - 40px); bottom: 44px; } }
+
+.btn.danger { color: #ff9aa8; border-color: rgba(255, 120, 140, 0.35); }
+.btn.danger:hover { background: rgba(255, 90, 110, 0.12); }

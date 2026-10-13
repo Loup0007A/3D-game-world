@@ -20,6 +20,7 @@ import { lerp } from './core/noise.js';
 import { Hud } from './ui/hud.js';
 import { StoryUI } from './ui/story-ui.js';
 import { SkillSystem, SKILLS, UPGRADES } from './game/skills.js';
+import { sendResult, uid, passthroughParams } from './game/report.js';
 import { getStory, storyMeta, difficulty, relicsFor, estimateMinutes, STORY_COUNT, CHAPTER_COUNT } from './game/stories/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -41,8 +42,11 @@ const queryN = parseInt(new URLSearchParams(location.search).get('story'), 10);
 const PATH_MODE = Number.isFinite(pathN);
 const storyN = [pathN, queryN].find((v) => Number.isFinite(v) && v >= 1 && v <= STORY_COUNT) || null;
 const QUERY_LINKS = location.protocol === 'file:' || import.meta.env.DEV || (!PATH_MODE && Number.isFinite(queryN));
-const linkTo = (n) => (QUERY_LINKS ? `?story=${n}` : PATH_MODE ? `../${n}/` : `./${n}/`);
-const hubLink = () => (QUERY_LINKS ? location.pathname : PATH_MODE ? '../' : './');
+// Les paramètres de l'URL (identifiant du joueur…) suivent d'une page à l'autre.
+const keepQ = () => { const q = passthroughParams().toString(); return q ? `&${q}` : ''; };
+const keepQ1 = () => { const q = passthroughParams().toString(); return q ? `?${q}` : ''; };
+const linkTo = (n) => (QUERY_LINKS ? `?story=${n}${keepQ()}` : (PATH_MODE ? `../${n}/` : `./${n}/`) + keepQ1());
+const hubLink = () => (QUERY_LINKS ? location.pathname + keepQ1() : (PATH_MODE ? '../' : './') + keepQ1());
 const story = storyN ? getStory(storyN) : null;
 const EMBEDDED = window.self !== window.top;
 
@@ -122,6 +126,7 @@ let slimes = null;
 let fragments = []; // { level: chapitre, idx }
 let flags = {};
 let storyBg = 'flyover';
+let run = null; // tentative en cours : { session, debut }
 let diff = difficulty(storyN || 1, 0);
 const SAVE_KEY = `mv-s${storyN}`;
 
@@ -197,7 +202,7 @@ function disposeWorld() {
 function save() {
   if (!storyN) return;
   const taken = world ? world.relics.items.map((r, i) => (r.taken ? i : -1)).filter((i) => i >= 0) : [];
-  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, order: flags.order || [] });
+  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run });
 }
 function readSave() {
   const s = store.get(SAVE_KEY, null);
@@ -209,6 +214,20 @@ function markDone(ending) {
   if (!d.includes(storyN)) d.push(storyN);
   store.set('mv-done', d);
   store.set(`mv-end${storyN}`, ending);
+}
+
+// ─── Résultat envoyé au site principal ─────────────────────────────
+function report(statut, raison, extra = '') {
+  if (!run) return;
+  const deaths = flags.deaths || 0;
+  sendResult({
+    niveau: storyN, statut,
+    score: statut === 'reussi' ? Math.max(30, 100 - deaths * 3) : 0,
+    raison,
+    details: `chapitre=${chapter};morts=${deaths};temps_jeu_min=${Math.round(playTime / 60)};points=${score}${extra}`,
+    session: run.session, debut: run.debut, fin: Date.now(),
+  });
+  run = null;
 }
 
 // Compétences et forces de départ de l'histoire.
@@ -281,8 +300,14 @@ function play() {
 
 // ─── Lancement d'une partie ────────────────────────────────────────
 $('play-btn').addEventListener('click', async () => {
-  if (readSave() && !window.confirm('Recommencer cette histoire depuis le début ? La progression sera perdue.')) return;
+  const old = readSave();
+  if (old && !window.confirm('Recommencer cette histoire depuis le début ? La partie en cours comptera comme un échec.')) return;
+  if (old?.run) {
+    run = old.run; chapter = old.chapter; flags = old.flags || {}; playTime = old.playTime || 0; score = old.score || 0;
+    report('echoue', 'recommence');
+  }
   sfx.init();
+  run = { session: uid(), debut: Date.now() };
   chapter = 1;
   score = 0;
   fragments = [];
@@ -312,6 +337,7 @@ $('continue-btn').addEventListener('click', async () => {
   fragments = s.fragments || [];
   flags = s.flags || {};
   playTime = s.playTime || 0;
+  run = s.run || { session: uid(), debut: Date.now() };
   if (builtFor !== `${storyN}:${chapter}`) await buildWorld(storyN, chapter);
   else placeAtArch();
   skills.load(s.skills, player);
@@ -339,6 +365,13 @@ function startChapter(resumed = false) {
 }
 
 $('resume-btn').addEventListener('click', play);
+$('abandon-btn').addEventListener('click', () => {
+  if (!window.confirm('Abandonner cette histoire ? Elle comptera comme un échec et la progression sera effacée.')) return;
+  report('echoue', 'abandon');
+  store.del(SAVE_KEY);
+  notify('abandon');
+  setState('title');
+});
 $('menu-btn').addEventListener('click', () => { save(); setState('title'); });
 $('journal-btn').addEventListener('click', () => openJournal());
 $('respawn-btn').addEventListener('click', () => respawn());
@@ -436,6 +469,7 @@ async function nextWorld() {
     await ui.sequence(end.lines, { kicker: 'Épilogue', deep: true });
     score += 1000;
     markDone(end.label);
+    report('reussi', 'histoire_terminee', `;fin=${choice === 'a' ? 'A' : 'B'}`);
     store.del(SAVE_KEY);
     notify('complete', { ending: end.label, score, minutes: Math.round(playTime / 60) });
     $('c-title').textContent = story.title;
@@ -469,6 +503,7 @@ function handleEvents() {
         particles.burst(player.pos.clone().add(new THREE.Vector3(0, 1, 0)), 0x9ff3ff, 14, { speed: 4, size: 0.25 });
         break;
       case 'death':
+        flags.deaths = (flags.deaths || 0) + 1;
         sfx.death();
         setTimeout(() => { if (!player.alive) setState('dead'); }, 900);
         break;
