@@ -56,6 +56,7 @@ Les histoires se font **dans l'ordre** : l'histoire N s'ouvre quand toutes les p
 Structure d'une histoire :
 - intro, puis **10 chapitres** (une île chacun) ;
 - **5 à 9 reliques** par île (70 en tout), chacune avec un fragment d'histoire ;
+- **35 artefacts cachés** par île, sans faisceau ni repère sur la carte (ils ne scintillent que de près) : chacun donne **+2 de vie max et +2 % d'attaque** jusqu'à la fin de l'histoire, dans la limite de 50 artefacts (+100 vie, attaque ×2) — réglage `ARTEFACT` dans `src/main.js` ;
 - quand toutes les reliques sont prises, un **gardien** (boss) apparaît au portail : il bondit (cercle rouge), invoque des renforts, puis crache des salves à mi-vie ;
 - au chapitre 10, le gardien final, puis le choix de fin et l'écran « Histoire suivante ».
 

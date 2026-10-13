@@ -12,6 +12,7 @@ import { Player } from './entities/player.js';
 import { FishSchool, Birds } from './entities/fauna.js';
 import { SlimeManager, TYPES } from './entities/slimes.js';
 import { Relics, Portal, Orbs } from './entities/relics.js';
+import { Artifacts, ARTEFACTS_PER_ISLAND } from './entities/artifacts.js';
 import { Particles } from './entities/particles.js';
 import { Input } from './core/input.js';
 import { ThirdPersonCamera } from './core/camera.js';
@@ -150,6 +151,7 @@ async function buildWorld(n, c, withLoading = true) {
   const spawn = terrain.findSpawn();
   const relics = new Relics(scene, terrain, seed, relicsFor(c - 1), [spawn]);
   const portal = new Portal(scene, terrain, spawn);
+  const artifacts = new Artifacts(scene, terrain, seed, ARTEFACTS_PER_ISLAND, [spawn, ...relics.items.map((r) => r.pos)]);
   await step(0.5, 'Les forêts poussent…');
   const exclude = [{ x: spawn.x, z: spawn.z, r: 18 }, ...relics.items.map((r) => ({ x: r.pos.x, z: r.pos.z, r: 6 }))];
   const vegetation = new Vegetation(terrain, seed, exclude);
@@ -161,9 +163,10 @@ async function buildWorld(n, c, withLoading = true) {
   scene.add(birds.mesh);
   diff = difficulty(n, c - 1);
   slimes = new SlimeManager(scene, terrain, diff);
+  slimes.playerDmgMul = artefactDmgMul();
   await step(0.95, 'Presque prêt…');
 
-  world = { seed, terrain, water, vegetation, fish, birds, relics, portal, spawn };
+  world = { seed, terrain, water, vegetation, fish, birds, relics, portal, spawn, artifacts };
   builtFor = `${n}:${c}`;
   placeAtArch();
   hud.setWorld(terrain.mapCanvas, relics, c);
@@ -190,7 +193,7 @@ function disposeWorld() {
   const w = world;
   scene.remove(w.terrain.mesh, w.water.mesh, w.vegetation.group, w.fish.mesh, w.birds.mesh);
   w.terrain.dispose(); w.water.dispose(); w.vegetation.dispose(); w.fish.dispose(); w.birds.dispose();
-  w.relics.dispose(); w.portal.dispose();
+  w.relics.dispose(); w.portal.dispose(); w.artifacts.dispose();
   slimes?.clear();
   orbs.clear();
   skills.clear();
@@ -202,7 +205,8 @@ function disposeWorld() {
 function save() {
   if (!storyN) return;
   const taken = world ? world.relics.items.map((r, i) => (r.taken ? i : -1)).filter((i) => i >= 0) : [];
-  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run });
+  const artsTaken = world ? world.artifacts.takenIndices() : [];
+  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken });
 }
 function readSave() {
   const s = store.get(SAVE_KEY, null);
@@ -235,6 +239,40 @@ function report(statut, raison, extra = '', fin = true) {
     session: `${run.session}:c${chapter}`, debut: chapterStart, fin: Date.now(),
   });
   if (fin) run = null;
+}
+
+// ─── Artefacts cachés ──────────────────────────────────────────────
+// Chaque artefact trouvé renforce le héros jusqu'à la fin de l'histoire :
+// +2 de vie max et +2 % d'attaque, dans la limite de 50 artefacts par
+// histoire (+100 vie, attaque ×2), pour ne pas rendre le jeu trop facile.
+const ARTEFACT = { hp: 2, atk: 0.02, max: 50 };
+let artefacts = 0;
+const artefactBonusCount = () => Math.min(artefacts, ARTEFACT.max);
+const artefactDmgMul = () => 1 + artefactBonusCount() * ARTEFACT.atk;
+function applyArtefacts() {
+  player.bonusHealth = artefactBonusCount() * ARTEFACT.hp;
+  skills.apply(player);
+  if (slimes) slimes.playerDmgMul = artefactDmgMul();
+}
+function onArtefact(a) {
+  const p = a.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
+  particles.burst(p, a.color, 50, { speed: 5, up: 6, gravity: -8, size: 0.32, life: 1.1 });
+  sfx.heal();
+  score += 25;
+  const before = artefactBonusCount();
+  artefacts++;
+  applyArtefacts();
+  const w = world;
+  const left = w ? w.artifacts.total - w.artifacts.collected : 0;
+  const island = left > 0 ? ` · encore ${left} caché${left > 1 ? 's' : ''} sur l'île` : ' · tous trouvés sur cette île !';
+  if (artefactBonusCount() > before) {
+    player.health = Math.min(player.health + ARTEFACT.hp * 5, player.maxHealth);
+    hud.toast(`Artefact caché ! <b>+${ARTEFACT.hp} vie max</b>, <b>+${Math.round(ARTEFACT.atk * 100)} % attaque</b> (attaque ×${artefactDmgMul().toFixed(2).replace('.', ',')})${island}`, 3600);
+  } else {
+    player.health = Math.min(player.health + 20, player.maxHealth);
+    hud.toast(`Artefact caché : puissance maximale déjà atteinte, +20 vie${island}`, 3200);
+  }
+  save();
 }
 
 // Compétences et forces de départ de l'histoire.
@@ -364,7 +402,9 @@ $('play-btn').addEventListener('click', async () => {
   playTime = 0;
   if (builtFor !== `${storyN}:1`) await buildWorld(storyN, 1);
   else placeAtArch();
+  artefacts = 0;
   applyStartKit();
+  applyArtefacts();
   ui.buildBar(skills);
   ui.clearDialogue();
   env.time = 0.3;
@@ -391,7 +431,10 @@ $('continue-btn').addEventListener('click', async () => {
   run = s.run || { session: uid(), debut: Date.now() };
   if (builtFor !== `${storyN}:${chapter}`) await buildWorld(storyN, chapter);
   else placeAtArch();
+  artefacts = s.arts || 0;
   skills.load(s.skills, player);
+  applyArtefacts();
+  for (const i of s.artsTaken || []) world.artifacts.markTaken(i);
   player.health = player.maxHealth;
   player.stamina = player.maxStamina;
   for (const i of s.taken || []) world.relics.markTaken?.(i);
@@ -790,6 +833,7 @@ function update(dt) {
       skills.update(dt, { input, player, cam, camera, terrain: w.terrain, slimes, enabled: playing, elapsed });
       slimes.update(dt, player, { night, elapsed });
       w.relics.update(dt, elapsed, player, onRelic, onRelicApproach);
+      w.artifacts.update(dt, elapsed, player, onArtefact);
       orbs.update(dt, elapsed, player, (p) => {
         player.health = Math.min(player.health + 25, player.maxHealth);
         sfx.heal();
@@ -880,6 +924,6 @@ function simulate(sec, keys = []) {
 // Accès debug / tests.
 window.__game = {
   get world() { return world; }, get slimes() { return slimes; }, get score() { return score; }, get chapter() { return chapter; },
-  get state() { return state; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
+  get state() { return state; }, get artefacts() { return artefacts; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
   story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES,
 };

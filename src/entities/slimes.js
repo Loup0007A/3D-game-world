@@ -152,6 +152,7 @@ export class SlimeManager {
     this.events = [];
     this.slowT = 0;
     this.boss = null;
+    this.playerDmgMul = 1;
     this.setDifficulty(diff);
   }
 
@@ -598,7 +599,8 @@ export class SlimeManager {
 
   damage(s, dmg, from, knock = 9) {
     if (s.dying >= 0) return;
-    s.hp -= dmg;
+    // Bonus d'attaque du héros (artefacts cachés).
+    s.hp -= dmg * this.playerDmgMul;
     s.hurtT = 0.18;
     const k = knock * s.T.knockMul;
     if (k > 0.5 && s.rootT <= 0) {

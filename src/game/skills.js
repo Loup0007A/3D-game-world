@@ -105,7 +105,7 @@ export class SkillSystem {
 
   apply(player) {
     for (const id of ['dash', 'doubleJump', 'glide', 'slam', 'tripleJump', 'waterWalk', 'secondWind']) player.abilities[id] = this.has(id);
-    const hp = player.baseMaxHealth + this.upgrades.hp * 20;
+    const hp = player.baseMaxHealth + this.upgrades.hp * 20 + (player.bonusHealth || 0);
     if (hp !== player.maxHealth) { player.health += Math.max(hp - player.maxHealth, 0); player.maxHealth = hp; player.health = Math.min(player.health, hp); }
     player.maxStamina = player.baseMaxStamina + this.upgrades.st * 20;
     player.meleeDmg = 1 + this.upgrades.melee;
