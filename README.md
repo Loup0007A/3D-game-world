@@ -4,7 +4,7 @@ Jeu d'exploration 3D dans le navigateur. Chaque île naît du **bruit fractal** 
 
 Trouve les reliques. Ouvre le portail. Passe au monde suivant. Survis aux slimes la nuit.
 
-**▶ Jouer en ligne : https://loup0007a.github.io/3d-game-world/**
+**▶ Jouer en ligne : https://loup0007a.github.io/3D-game-world/**
 
 | | |
 |---|---|
