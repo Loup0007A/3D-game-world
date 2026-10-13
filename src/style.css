@@ -275,3 +275,8 @@ a.btn { text-decoration: none; text-align: center; display: inline-block; }
 .email-error { min-height: 18px; color: #ff9aa8; font-size: 13px; text-align: center; }
 .t-email b { color: var(--ink); font-weight: 600; }
 #email-form .story-kicker { text-align: center; }
+
+.t-locked { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 20px; border-radius: 14px; background: var(--glass); border: 1px solid rgba(255, 120, 140, 0.35); }
+.t-locked b { font: 700 15px var(--display); letter-spacing: 0.1em; color: #ff9aa8; }
+.t-locked span { color: var(--ink-dim); font-size: 14px; }
+.hub-card.locked { opacity: 0.4; cursor: not-allowed; }

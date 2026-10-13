@@ -209,6 +209,9 @@ function readSave() {
   return s && s.v === 3 ? s : null;
 }
 const doneList = () => store.get('mv-done', []);
+// Histoires dans l'ordre : la N s'ouvre quand toutes les précédentes sont finies.
+const progress = () => { const d = doneList(); let p = 0; while (d.includes(p + 1)) p++; return p; };
+const isUnlocked = (n) => n <= progress() + 1;
 function markDone(ending) {
   const d = doneList();
   if (!d.includes(storyN)) d.push(storyN);
@@ -252,7 +255,16 @@ function renderTitle() {
   $('t-meta').innerHTML = `<span class="stars">${starStr(story.stars)}</span> · ≈ ${fmtTime(est)} · ${CHAPTER_COUNT} chapitres · ${story.plan.start.length} compétence${story.plan.start.length > 1 ? 's' : ''} au départ, ${story.plan.unlocks.length} à retrouver`;
   const s = readSave();
   const cont = $('continue-btn');
-  cont.classList.toggle('hidden', !s);
+  const open = isUnlocked(storyN);
+  $('t-locked').classList.toggle('hidden', open);
+  if (!open) {
+    const p = progress() + 1;
+    $('t-locked-msg').textContent = `Termine d'abord l'histoire ${p} : « ${storyMeta(p).title} ».`;
+    $('t-locked-link').href = linkTo(p);
+    $('t-locked-link').textContent = `Aller à l'histoire ${p} →`;
+  }
+  $('play-btn').classList.toggle('hidden', !open);
+  cont.classList.toggle('hidden', !s || !open);
   $('play-btn').classList.toggle('secondary', !!s);
   $('play-btn').textContent = s ? 'Recommencer' : doneList().includes(storyN) ? 'Rejouer' : 'Commencer';
   if (s) cont.textContent = `Continuer · chapitre ${s.chapter}`;
@@ -269,6 +281,12 @@ function renderHub() {
   for (let n = 1; n <= STORY_COUNT; n++) {
     const m = storyMeta(n);
     const started = !done.includes(n) && store.get(`mv-s${n}`, null);
+    if (!isUnlocked(n)) {
+      html += `<div class="hub-card locked" title="Termine d'abord l'histoire ${n - 1}">
+      <div class="n"><span>${n}</span><span class="stars">${starStr(m.stars)}</span></div>
+      <b>🔒 ${esc(m.title)}</b><span>Termine l'histoire ${n - 1} pour l'ouvrir</span></div>`;
+      continue;
+    }
     html += `<a class="hub-card${done.includes(n) ? ' done' : started ? ' started' : ''}" href="${linkTo(n)}">
       <div class="n"><span>${n}</span><span class="stars">${starStr(m.stars)}</span></div>
       <b>${esc(m.title)}</b><span>${esc(m.hero)} · ${m.skills} compétences</span></a>`;
@@ -325,6 +343,7 @@ function play() {
 
 // ─── Lancement d'une partie ────────────────────────────────────────
 $('play-btn').addEventListener('click', async () => {
+  if (!isUnlocked(storyN)) return renderTitle();
   await ensureEmail();
   const old = readSave();
   if (old && !window.confirm('Recommencer cette histoire depuis le début ? La partie en cours comptera comme un échec.')) return;
@@ -355,6 +374,7 @@ $('play-btn').addEventListener('click', async () => {
 });
 
 $('continue-btn').addEventListener('click', async () => {
+  if (!isUnlocked(storyN)) return renderTitle();
   await ensureEmail();
   sfx.init();
   const s = readSave();

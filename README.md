@@ -51,6 +51,8 @@ Quitter la page ne compte pas comme un échec : une histoire dure 3 h, la partie
 
 Chaque histoire a son héros, son guide, son fléau, ses ennemis, son monde, une révélation au chapitre 7 et deux fins au choix. Les débuts, révélations et fins sont écrits à la main (`src/game/stories/seeds.js`). Les textes des chapitres sont assemblés à partir de modèles (`templates.js`), donc des phrases reviennent d'une histoire à l'autre. L'histoire 1 reprend les textes écrits pour le premier jeu.
 
+Les histoires se font **dans l'ordre** : l'histoire N s'ouvre quand toutes les précédentes sont terminées (progression gardée dans le navigateur).
+
 Structure d'une histoire :
 - intro, puis **10 chapitres** (une île chacun) ;
 - **5 à 9 reliques** par île (70 en tout), chacune avec un fragment d'histoire ;
