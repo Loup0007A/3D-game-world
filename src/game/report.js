@@ -8,12 +8,30 @@ export const REPORT = {
 };
 
 // Champs fixés par le jeu : un paramètre d'URL du même nom est ignoré.
-const RESERVES = ['epreuve', 'epreuve_num', 'niveau', 'statut', 'reussi', 'score', 'raison', 'details', 'session', 'debut', 'fin', 'duree_s', 'source', 'origine', 'parent', 'integre', 'ts', 'sig', 'story'];
+const RESERVES = ['email', 'epreuve', 'epreuve_num', 'niveau', 'statut', 'reussi', 'score', 'raison', 'details', 'session', 'debut', 'fin', 'duree_s', 'source', 'origine', 'parent', 'integre', 'ts', 'sig', 'story'];
 
 export function fnv(str) {
   let h = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return h.toString(16).padStart(8, '0');
+}
+
+// Adresse e-mail du joueur, demandée au début et jointe à chaque requête.
+const EMAIL_KEY = 'mv-email';
+let emailMem = '';
+export const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim());
+export function getEmail() {
+  if (emailMem) return emailMem;
+  try { emailMem = JSON.parse(localStorage.getItem(EMAIL_KEY)) || ''; } catch { /* stockage indisponible */ }
+  if (!emailMem) {
+    const q = new URLSearchParams(location.search).get('email');
+    if (isEmail(q)) setEmail(q);
+  }
+  return emailMem;
+}
+export function setEmail(v) {
+  emailMem = String(v).trim().toLowerCase();
+  try { localStorage.setItem(EMAIL_KEY, JSON.stringify(emailMem)); } catch { /* idem */ }
 }
 
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
@@ -52,6 +70,7 @@ export function sendResult(r) {
   markSent(r.session);
   const p = passthroughParams();
   const data = {
+    email: getEmail(),
     epreuve: REPORT.EPREUVE, epreuve_num: REPORT.EPREUVE_NUM, niveau: r.niveau,
     statut: r.statut, reussi: r.statut === 'reussi' ? 1 : 0, score: r.score,
     raison: r.raison || '', details: r.details || '', session: r.session,

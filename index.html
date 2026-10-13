@@ -47,6 +47,18 @@
     <div id="bossbar" class="hidden"><div class="bb-name"></div><div class="bb-track"><div class="bb-fill"></div></div></div>
   </div>
 
+  <!-- Adresse e-mail demandée au début -->
+  <div id="email-gate" class="overlay hidden">
+    <form class="panel" id="email-form" novalidate>
+      <div class="story-kicker">Avant de commencer</div>
+      <h2>Ton adresse e-mail</h2>
+      <p class="muted">Elle est envoyée avec ton résultat pour qu'il soit enregistré à ton nom.</p>
+      <input id="email-input" type="email" autocomplete="email" inputmode="email" placeholder="prenom.nom@exemple.fr" required />
+      <p id="email-error" class="email-error"></p>
+      <button class="btn primary" type="submit">Valider</button>
+    </form>
+  </div>
+
   <!-- Liste des 100 histoires (racine du site) -->
   <div id="hub" class="overlay hidden">
     <div class="hub-inner">
@@ -117,6 +129,7 @@
       </div>
       <div class="t-links"><a id="t-all" href="../">← Toutes les histoires</a><button id="fs-btn" class="link-btn">Plein écran</button></div>
       <p id="best" class="muted"></p>
+      <p class="muted t-email">Résultats envoyés pour <b id="t-email"></b> · <button id="email-change" class="link-btn">changer</button></p>
     </div>
   </div>
 

@@ -20,7 +20,7 @@ import { lerp } from './core/noise.js';
 import { Hud } from './ui/hud.js';
 import { StoryUI } from './ui/story-ui.js';
 import { SkillSystem, SKILLS, UPGRADES } from './game/skills.js';
-import { sendResult, uid, passthroughParams } from './game/report.js';
+import { sendResult, uid, passthroughParams, getEmail, setEmail, isEmail } from './game/report.js';
 import { getStory, storyMeta, difficulty, relicsFor, estimateMinutes, STORY_COUNT, CHAPTER_COUNT } from './game/stories/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -259,6 +259,7 @@ function renderTitle() {
   $('t-all').href = hubLink();
   const end = store.get(`mv-end${storyN}`, null);
   $('best').textContent = end ? `Terminée · fin choisie : « ${end} »` : '';
+  $('t-email').textContent = getEmail() || '—';
 }
 
 function renderHub() {
@@ -274,6 +275,30 @@ function renderHub() {
   }
   grid.innerHTML = html;
 }
+
+// ─── Adresse e-mail ────────────────────────────────────────────────
+function askEmail() {
+  return new Promise((resolve) => {
+    const gate = $('email-gate');
+    const inputEl = $('email-input');
+    inputEl.value = getEmail();
+    $('email-error').textContent = '';
+    gate.classList.remove('hidden');
+    setTimeout(() => inputEl.focus(), 50);
+    const form = $('email-form');
+    const onSubmit = (e) => {
+      e.preventDefault();
+      if (!isEmail(inputEl.value)) { $('email-error').textContent = 'Adresse invalide. Exemple : prenom.nom@exemple.fr'; return; }
+      setEmail(inputEl.value);
+      form.removeEventListener('submit', onSubmit);
+      gate.classList.add('hidden');
+      $('t-email').textContent = getEmail();
+      resolve(getEmail());
+    };
+    form.addEventListener('submit', onSubmit);
+  });
+}
+const ensureEmail = async () => (isEmail(getEmail()) ? getEmail() : askEmail());
 
 function setState(s) {
   state = s;
@@ -300,6 +325,7 @@ function play() {
 
 // ─── Lancement d'une partie ────────────────────────────────────────
 $('play-btn').addEventListener('click', async () => {
+  await ensureEmail();
   const old = readSave();
   if (old && !window.confirm('Recommencer cette histoire depuis le début ? La partie en cours comptera comme un échec.')) return;
   if (old?.run) {
@@ -329,6 +355,7 @@ $('play-btn').addEventListener('click', async () => {
 });
 
 $('continue-btn').addEventListener('click', async () => {
+  await ensureEmail();
   sfx.init();
   const s = readSave();
   if (!s) return;
@@ -365,6 +392,7 @@ function startChapter(resumed = false) {
 }
 
 $('resume-btn').addEventListener('click', play);
+$('email-change').addEventListener('click', () => askEmail());
 $('abandon-btn').addEventListener('click', () => {
   if (!window.confirm('Abandonner cette histoire ? Elle comptera comme un échec et la progression sera effacée.')) return;
   report('echoue', 'abandon');
@@ -819,6 +847,8 @@ function simulate(sec, keys = []) {
   camera.position.set(world.spawn.x + 120, 60, world.spawn.z);
   setState('title');
   loop();
+  // Demande l'adresse dès l'arrivée sur une histoire.
+  if (!isEmail(getEmail())) askEmail();
 })();
 
 // Accès debug / tests.

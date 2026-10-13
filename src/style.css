@@ -268,3 +268,10 @@ a.btn { text-decoration: none; text-align: center; display: inline-block; }
 
 .btn.danger { color: #ff9aa8; border-color: rgba(255, 120, 140, 0.35); }
 .btn.danger:hover { background: rgba(255, 90, 110, 0.12); }
+
+#email-gate { z-index: 45; background: rgba(4, 8, 12, 0.72); backdrop-filter: blur(6px); }
+#email-input { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.07); color: var(--ink); font: 400 16px var(--body); outline: none; user-select: text; -webkit-user-select: text; pointer-events: auto; }
+#email-input:focus { border-color: var(--gold); }
+.email-error { min-height: 18px; color: #ff9aa8; font-size: 13px; text-align: center; }
+.t-email b { color: var(--ink); font-weight: 600; }
+#email-form .story-kicker { text-align: center; }

@@ -42,7 +42,7 @@ Comme dans le dépôt **Potions**, le jeu envoie le résultat à `https://sid-qu
 | Bouton « Abandonner l'histoire » | `echoue` | `abandon` | 0 |
 | « Recommencer » sur une partie en cours | `echoue` | `recommence` | 0 |
 
-Champs : `epreuve=mondes-vivants`, `epreuve_num=4`, `niveau` = numéro de l'histoire, `reussi`, `session`, `debut`, `fin`, `duree_s`, `details` (chapitre, morts, temps de jeu, points, fin choisie), `source`, `origine`, `parent`, `integre`, `ts`, `sig` = fnv(`sid-quest-v2|` + paramètres triés).
+Champs : `email` (demandé au joueur à l'arrivée sur une histoire, gardé dans le navigateur, modifiable sur l'écran titre ; peut aussi être passé dans l'URL : `/12/?email=…`), `epreuve=mondes-vivants`, `epreuve_num=4`, `niveau` = numéro de l'histoire, `reussi`, `session`, `debut`, `fin`, `duree_s`, `details` (chapitre, morts, temps de jeu, points, fin choisie), `source`, `origine`, `parent`, `integre`, `ts`, `sig` = fnv(`sid-quest-v2|` + paramètres triés).
 Les paramètres de l'URL de l'iframe (ex. `/12/?user=abc`) sont recopiés dans la requête et gardés dans les liens « Histoire suivante » et « Toutes les histoires ». Une même tentative n'est envoyée qu'une fois.
 
 Quitter la page ne compte pas comme un échec : une histoire dure 3 h, la partie est sauvegardée et reprend avec **Continuer**.
