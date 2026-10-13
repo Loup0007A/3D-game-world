@@ -203,16 +203,18 @@ export class SlimeManager {
   }
 
   // Frappe tout slime dans un rayon autour du point d'attaque.
-  hitArea(point, radius, from) {
+  hitArea(point, radius, from, dmg = 1, knock = 9) {
     let hits = 0;
     for (const s of this.list) {
       if (s.dying >= 0) continue;
       const c = s.pos.clone().add(new THREE.Vector3(0, 0.4 * s.T.scale, 0));
       if (c.distanceTo(point) < radius + 0.6 * s.T.scale) {
-        s.hp -= 1;
+        s.hp -= dmg;
         s.hurtT = 0.18;
-        const push = new THREE.Vector3(s.pos.x - from.x, 0, s.pos.z - from.z).normalize();
-        s.vel.set(push.x * 9 / s.T.scale, 6, push.z * 9 / s.T.scale);
+        const push = new THREE.Vector3(s.pos.x - from.x, 0, s.pos.z - from.z);
+        if (push.lengthSq() < 1e-4) push.set(1, 0, 0);
+        push.normalize();
+        s.vel.set(push.x * knock / s.T.scale, 4 + knock * 0.25, push.z * knock / s.T.scale);
         s.onGround = false;
         s.hopTimer = 0.9;
         hits++;

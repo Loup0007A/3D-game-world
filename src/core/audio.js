@@ -112,4 +112,13 @@ export class Sfx {
   heal() { [660, 880, 1100].forEach((f, i) => this._tone(f, 0.4, { type: 'sine', vol: 0.12, delay: i * 0.06 })); }
   death() { [392, 330, 262, 196].forEach((f, i) => this._tone(f, 0.6, { type: 'triangle', vol: 0.16, delay: i * 0.18 })); }
   click() { this._tone(880, 0.06, { type: 'square', vol: 0.05 }); }
+  dash() { this._noise(0.28, { freq: 1600, q: 0.7, vol: 0.28 }); this._tone(420, 0.2, { type: 'sine', vol: 0.08, slide: 500 }); }
+  doubleJump() { this._tone(500, 0.18, { type: 'triangle', vol: 0.1, slide: 400 }); this._noise(0.15, { freq: 2200, vol: 0.1 }); }
+  bolt() { this._tone(1200, 0.25, { type: 'triangle', vol: 0.1, slide: -600 }); this._noise(0.12, { freq: 3000, vol: 0.08 }); }
+  boltHit() { this._tone(700, 0.2, { type: 'sine', vol: 0.1, slide: -400 }); this._noise(0.15, { freq: 1800, vol: 0.12 }); }
+  nova() { this._tone(110, 0.7, { type: 'sine', vol: 0.3, slide: -50 }); this._noise(0.6, { freq: 400, q: 0.5, vol: 0.35, type: 'lowpass' }); [880, 1320].forEach((f, i) => this._tone(f, 0.5, { type: 'sine', vol: 0.05, delay: 0.05 * i })); }
+  step(run) { this._noise(run ? 0.07 : 0.05, { freq: run ? 700 : 500, q: 1.2, vol: run ? 0.06 : 0.035 }); }
+  unlock() { [392, 523, 659, 784, 1046].forEach((f, i) => this._tone(f, 1.2, { type: 'sine', vol: 0.13, delay: i * 0.1 })); this._tone(1568, 1.6, { type: 'triangle', vol: 0.06, delay: 0.5 }); }
+  blip() { this._tone(1500 + Math.random() * 300, 0.03, { type: 'sine', vol: 0.025 }); }
+  glide() { this._noise(0.4, { freq: 900, q: 0.4, vol: 0.12 }); }
 }

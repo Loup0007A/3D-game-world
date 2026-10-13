@@ -46,6 +46,10 @@ export class Input {
     canvas.addEventListener('mousedown', (e) => {
       if (!this.locked) return;
       if (e.button === 0) this.attackQueued = true;
+      if (e.button === 2) { this.pressed.add('Mouse2'); this.keys.add('Mouse2'); }
+    });
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 2) this.keys.delete('Mouse2');
     });
     canvas.addEventListener('wheel', (e) => {
       this.wheel += Math.sign(e.deltaY);
@@ -128,6 +132,9 @@ export class Input {
     bind('touch-jump', 'Space');
     bind('touch-run', 'ShiftLeft');
     bind('touch-attack', 'Attack');
+    bind('touch-dash', 'KeyE');
+    bind('touch-bolt', 'KeyR');
+    bind('touch-nova', 'KeyC');
   }
 
   down(...codes) { return this.enabled && codes.some((c) => this.keys.has(c)); }

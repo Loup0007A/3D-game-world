@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Mondes Vivants</title>
-  <meta name="description" content="Explore des îles générées par le bruit fractal. Trouve les reliques, ouvre le portail, survis aux slimes." />
+  <meta name="description" content="Ilo se réveille dans le rêve d'un vieil homme. Retrouve ses souvenirs à travers des îles nées du bruit fractal." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏝️</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -35,6 +35,34 @@
     <div id="score"><span id="world-label">Monde 1</span> · <span id="score-val">0</span> pts</div>
     <div id="crosshair"></div>
     <div id="click-to-play">Clique pour contrôler la caméra</div>
+    <div id="skillbar"></div>
+    <div id="dialogue"><div class="who">Lueur</div><div class="line"></div></div>
+    <div id="memory">
+      <div class="mem-kicker">Éclat de mémoire</div>
+      <div class="mem-title"></div>
+      <div class="mem-text"></div>
+      <div class="mem-reward"></div>
+    </div>
+    <div id="chapter-card"><div class="ch-num"></div><div class="ch-title"></div></div>
+  </div>
+
+  <!-- Séquences d'histoire -->
+  <div id="story" class="overlay hidden">
+    <div class="story-inner">
+      <div class="story-kicker"></div>
+      <p id="story-line"></p>
+      <div id="story-choices"></div>
+      <div class="story-hint">Clic ou Espace pour continuer · <button id="story-skip" class="link-btn">Passer</button></div>
+    </div>
+  </div>
+
+  <!-- Journal -->
+  <div id="journal" class="overlay hidden">
+    <div class="panel journal-panel">
+      <h2>Journal d'Ilo</h2>
+      <div class="journal-body"></div>
+      <p class="muted">J ou Échap pour fermer</p>
+    </div>
   </div>
 
   <div id="bigmap" class="overlay hidden">
@@ -48,19 +76,23 @@
   <div id="title" class="overlay">
     <div class="title-inner">
       <h1>Mondes <em>Vivants</em></h1>
-      <p class="tagline">Des îles nées du bruit fractal. Sept biomes. Des reliques perdues. Un portail.</p>
+      <p class="tagline">Un vieil homme s'est endormi, et ses rêves sont devenus des îles. Toi, tu es né·e de l'un d'eux. Retrouve ses souvenirs avant que la Brume ne les efface.</p>
       <div class="seed-row">
         <label for="seed-input">Graine</label>
         <input id="seed-input" type="text" inputmode="numeric" maxlength="10" />
         <button id="seed-random" class="btn ghost" title="Graine aléatoire">⟳</button>
       </div>
-      <button id="play-btn" class="btn primary">Explorer</button>
+      <div class="title-buttons">
+        <button id="continue-btn" class="btn primary hidden">Continuer</button>
+        <button id="play-btn" class="btn primary">Nouvelle partie</button>
+      </div>
       <div class="controls-grid">
         <div><kbd>ZQSD</kbd><kbd>WASD</kbd> se déplacer</div>
         <div><kbd>Souris</kbd> caméra · <kbd>Molette</kbd> zoom</div>
         <div><kbd>Espace</kbd> sauter / nager vers le haut</div>
         <div><kbd>Shift</kbd> courir · <kbd>Clic</kbd>/<kbd>F</kbd> frapper</div>
-        <div><kbd>M</kbd> carte · <kbd>Échap</kbd> pause</div>
+        <div><kbd>M</kbd> carte · <kbd>J</kbd> journal · <kbd>Échap</kbd> pause</div>
+        <div class="muted-row">Les compétences reviennent avec les souvenirs</div>
       </div>
       <p id="best" class="muted"></p>
     </div>
@@ -95,7 +127,7 @@
       <div class="setting check"><label><input id="invert" type="checkbox" /> Inverser l'axe vertical</label></div>
       <div class="setting check"><label><input id="mute" type="checkbox" /> Couper le son</label></div>
       <div class="row">
-        <button id="newworld-btn" class="btn">Nouveau monde</button>
+        <button id="journal-btn" class="btn">Journal</button>
         <button id="menu-btn" class="btn ghost">Menu</button>
       </div>
       <p class="muted" id="pause-seed"></p>
@@ -106,7 +138,7 @@
   <div id="dead" class="overlay hidden">
     <div class="panel">
       <h2>Évanoui…</h2>
-      <p class="muted">Tu te réveilles au portail. Tes reliques sont sauves.</p>
+      <p class="muted">Ce n'est qu'un rêve. Tu te réveilles devant l'arche. Tes souvenirs sont saufs.</p>
       <button id="respawn-btn" class="btn primary">Se relever</button>
     </div>
   </div>
@@ -127,6 +159,9 @@
     <button id="touch-jump" class="touch-btn">⤒</button>
     <button id="touch-run" class="touch-btn">»</button>
     <button id="touch-pause" class="touch-btn small">❚❚</button>
+    <button id="touch-dash" class="touch-btn skill-btn locked">➶</button>
+    <button id="touch-bolt" class="touch-btn skill-btn locked">✦</button>
+    <button id="touch-nova" class="touch-btn skill-btn locked">◎</button>
   </div>
 
   <script type="module" src="./src/main.js"></script>
