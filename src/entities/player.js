@@ -152,6 +152,8 @@ export class Player {
     this.shieldT = 0;
     this.regen = 2.5;
     this.meleeDmg = 1;
+    this.speedMul = 1; // butin « Plume de vent »
+    this.wardCharges = 0; // butin « Fiole de garde »
     this.slamming = false;
     this.diffDmg = 1;
 
@@ -218,6 +220,13 @@ export class Player {
 
   damage(amount, from) {
     if (this.invuln > 0 || !this.alive) return false;
+    // Fiole de garde (butin) : absorbe les prochains coups ennemis.
+    if (from && this.wardCharges > 0) {
+      this.wardCharges--;
+      this.invuln = 0.35;
+      this.events.push({ type: 'ward', left: this.wardCharges });
+      return false;
+    }
     // « Bouclier divin » : 2 attaques ennemies sur 3 ratent (pas les chutes).
     if (from && this.divineShield && Math.random() < 2 / 3) {
       this.invuln = 0.25;
@@ -307,7 +316,7 @@ export class Player {
     this.runBlend = damp(this.runBlend, this.running ? 1 : 0, this.running ? 4 : 5, dt);
 
     // ── Vitesse au sol : on tourne le vecteur vitesse au lieu de le remplacer ──
-    let maxSpeed = this.swimming ? lerp(3.4, 5.6, this.runBlend) : lerp(WALK, RUN, this.runBlend);
+    let maxSpeed = (this.swimming ? lerp(3.4, 5.6, this.runBlend) : lerp(WALK, RUN, this.runBlend)) * (this.speedMul || 1);
     if (this.onGround && moving && !this.swimming) {
       // Plus lent en montée, un peu plus rapide en descente.
       const ahead = terrain.heightAt(this.pos.x + wish.x * 1.2, this.pos.z + wish.z * 1.2);

@@ -24,6 +24,17 @@ export const TYPES = {
     shot: { kind: 'bolt', dmg: 14, cd: 2.6, range: 22, speed: 32, color: 0xb070ff } },
   boss: { color: 0xd23a5a, hp: 18, dmg: 20, scale: 3.4, speed: 4.6, score: 400, move: 'hop', crown: true, knockMul: 0.08, boss: true,
     shot: { kind: 'lob', dmg: 16, cd: 3.2, range: 40, speed: 20, count: 3, spread: 3 } },
+  // Rôdeur : prend son élan (cercle d'avertissement) puis charge en ligne droite.
+  charger: { color: 0x9c6b3c, hp: 4, dmg: 22, scale: 1.2, speed: 4.5, score: 25, move: 'charge', horns: true },
+  // Grondeur : fonce sur toi, gonfle… et explose.
+  bomber: { color: 0xff3b1f, hp: 2, dmg: 30, scale: 0.9, speed: 6.5, score: 20, move: 'hop', bomb: true, glow: 0.6 },
+  // Moucherons : petits, rapides, toujours en essaim.
+  swarm: { color: 0xc8ff4a, hp: 1, dmg: 5, scale: 0.35, speed: 10, score: 4, move: 'float', glow: 1.2 },
+  // Mage des Échos : reste à distance, tire et appelle des renforts.
+  summoner: { color: 0x6a5cff, hp: 5, dmg: 8, scale: 1.1, speed: 4, score: 45, move: 'hop', ranged: true, glow: 0.5, summoner: true,
+    shot: { kind: 'bolt', dmg: 10, cd: 2.8, range: 26, speed: 22, color: 0xa594ff } },
+  // Mimique : déguisée en artefact, elle attend qu'on s'approche.
+  mimic: { color: 0xd9a441, hp: 7, dmg: 24, scale: 1.15, speed: 6, score: 80, move: 'hop', mimic: true },
   // Dragon : gardien des joueurs dont la Puissance atteint 90. Vole, plonge
   // sur sa cible et crache des gerbes de feu.
   dragon: { color: 0x8a1424, hp: 34, dmg: 26, scale: 2.1, speed: 8, score: 1500, move: 'fly', knockMul: 0.04, boss: true, dragon: true,
@@ -82,7 +93,7 @@ const BUFF = { hp: 1.3, dmg: 1.2, speed: 1.2, aggro: 1.25, density: 1.1 };
 const SHOT = { cdEarly: 1.8, cdLate: 1.0, windEarly: 0.7, windLate: 0.42, dmgEarly: 0.6, dmgLate: 1.0 };
 
 // Ordre d'apparition des nouveaux Échos au fil des histoires.
-export const ENEMY_UNLOCK = { wisp: 6, spitter: 16, golem: 30, shade: 48 };
+export const ENEMY_UNLOCK = { wisp: 4, charger: 9, spitter: 14, bomber: 21, golem: 28, swarm: 36, shade: 44, summoner: 55, mimic: 63 };
 
 const bodyGeo = (() => {
   const g = new THREE.SphereGeometry(0.7, 24, 16);
@@ -117,6 +128,9 @@ function shotMat(color, stone) {
   return shotMats.get(key);
 }
 const rootGeo = new THREE.ConeGeometry(0.12, 1.3, 4).translate(0, 0.5, 0);
+const hornMat = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.5 });
+const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffe08a });
+const eliteMat = new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
 const rootMat = new THREE.MeshStandardMaterial({ color: 0x6fae45, emissive: 0x2c5a18, emissiveIntensity: 0.6, roughness: 0.9, flatShading: true });
 
 class Slime {
@@ -191,6 +205,44 @@ class Slime {
       crown.position.y = 1.0;
       g.add(crown);
     }
+    if (T.horns) {
+      for (const sx of [-1, 1]) {
+        const horn = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.55, 6), hornMat);
+        horn.position.set(sx * 0.32, 0.78, 0.35);
+        horn.rotation.set(0.9, 0, -sx * 0.5);
+        g.add(horn);
+      }
+    }
+    if (T.bomb) {
+      const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.35, 5), hornMat);
+      fuse.position.y = 0.95;
+      const spark = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), sparkMat);
+      spark.position.y = 1.15;
+      g.add(fuse, spark);
+      this.spark = spark;
+    }
+    if (T.summoner) {
+      const hat = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.9, 7), new THREE.MeshStandardMaterial({ color: 0x2a2060, roughness: 0.7 }));
+      hat.position.y = 1.15;
+      g.add(hat);
+    }
+    if (T.mimic) {
+      // Déguisement : une pierre runique comme les artefacts cachés.
+      const rune = new THREE.Mesh(new THREE.OctahedronGeometry(0.32, 0), new THREE.MeshStandardMaterial({ color: 0xffb347, emissive: 0xff7a00, emissiveIntensity: 0.9, roughness: 0.25, flatShading: true }));
+      rune.scale.y = 1.6;
+      rune.position.y = 0.75;
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 0.35, 6), new THREE.MeshStandardMaterial({ color: 0x5d5650, roughness: 0.95, flatShading: true }));
+      base.position.y = 0.1;
+      this.disguise = new THREE.Group();
+      this.disguise.add(rune, base);
+      this.disguiseRune = rune;
+      for (let k = 0; k < 6; k++) {
+        const tooth = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 4), eyeMat);
+        tooth.position.set(-0.3 + k * 0.12, 0.3, 0.6);
+        tooth.rotation.x = Math.PI;
+        g.add(tooth);
+      }
+    }
     if (T.ranged) {
       const snout = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.35, 8).rotateX(Math.PI / 2), this.mat);
       snout.position.set(0, 0.45, 0.62);
@@ -198,6 +250,12 @@ class Slime {
     }
     this.body = body;
     this.object = g;
+    if (this.disguise) {
+      // Tant qu'elle se cache, seule la pierre runique est visible.
+      g.children.forEach((c) => { c.visible = false; });
+      g.add(this.disguise);
+      this.disguised = true;
+    }
     this.object.scale.setScalar(T.scale);
   }
 }
@@ -224,6 +282,7 @@ export class SlimeManager {
   setDifficulty(diff) {
     const d = { hp: 1, dmg: 1, speed: 1, density: 1, kingChance: 0.04, aggro: 26, types: [], ...diff };
     this.diff = {
+      eliteChance: 0.04,
       ...d,
       hp: d.hp * BUFF.hp,
       dmg: d.dmg * BUFF.dmg,
@@ -236,14 +295,44 @@ export class SlimeManager {
     this.windup = lerp(SHOT.windEarly, SHOT.windLate, this.tier);
   }
 
-  spawn(type, pos) {
+  spawn(type, pos, opts = {}) {
     const mods = TYPES[type].boss ? { hp: this.diff.hp * (this.diff.bossHp ?? 1), dmg: this.diff.dmg, speed: Math.min(this.diff.speed, 1.3 * BUFF.speed) } : this.diff;
     const s = new Slime(type, pos, mods);
-    if (type === 'wisp' || type === 'dragon') s.pos.y += s.flyY;
+    if (type === 'wisp' || type === 'swarm' || type === 'dragon') s.pos.y += s.flyY;
+    // Élite : plus grosse, plus dure, couronnée d'or… et toujours un butin.
+    if (opts.elite || (!s.T.boss && type !== 'swarm' && type !== 'mimic' && Math.random() < this.diff.eliteChance)) this._makeElite(s);
     this.list.push(s);
     this.scene.add(s.object);
     if (s.T.boss) { this.boss = s; s.summonCd = 8; s.leapCd = 5; s.volleyCd = 6; }
     return s;
+  }
+
+  _makeElite(s) {
+    s.elite = true;
+    s.hp = s.maxHp = Math.max(2, Math.round(s.maxHp * 2.5));
+    s.T = { ...s.T, dmg: Math.round(s.T.dmg * 1.3), scale: s.T.scale * 1.3, score: s.T.score * 4, knockMul: (s.T.knockMul ?? 1) * 0.5 };
+    s.object.scale.setScalar(s.T.scale);
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 6, 24), eliteMat);
+    halo.rotation.x = Math.PI / 2;
+    halo.position.y = 1.25;
+    s.object.add(halo);
+    s.halo = halo;
+  }
+
+  // Moucherons : toujours en essaim.
+  spawnSwarm(pos, n = 5) {
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2;
+      this.spawn('swarm', pos.clone().add(new THREE.Vector3(Math.cos(a) * 1.5, 0, Math.sin(a) * 1.5)));
+    }
+  }
+
+  // Mimiques posées à la création de l'île (elles ne bougent pas avant qu'on approche).
+  placeMimics(points) {
+    for (const p of points) {
+      const m = this.spawn('mimic', p);
+      m.guard = p.clone();
+    }
   }
 
   _typeFor(x, z, night) {
@@ -252,7 +341,11 @@ export class SlimeManager {
     const r = Math.random();
     if (r < this.diff.kingChance) return 'king';
     // Nouveaux Échos selon l'histoire.
+    if (types.includes('summoner') && Math.random() < 0.07) return 'summoner';
     if (types.includes('shade') && night > 0.5 && Math.random() < 0.18) return 'shade';
+    if (types.includes('swarm') && Math.random() < 0.12) return 'swarm';
+    if (types.includes('bomber') && Math.random() < 0.13) return 'bomber';
+    if (types.includes('charger') && (b !== BIOME.SWAMP) && Math.random() < 0.16) return 'charger';
     if (types.includes('golem') && (b === BIOME.MOUNTAIN || b === BIOME.SNOW || Math.random() < 0.08) && Math.random() < 0.3) return 'golem';
     if (types.includes('spitter') && Math.random() < 0.22) return 'spitter';
     if (types.includes('wisp') && night > 0.5 && Math.random() < 0.28) return 'wisp';
@@ -374,7 +467,9 @@ export class SlimeManager {
           if (h < SEA_LEVEL + 0.5) continue;
           const b = T.biomeAt(x, z);
           if (night < 0.5 && b !== BIOME.SWAMP) continue;
-          this.spawn(this._typeFor(x, z, night), new THREE.Vector3(x, h, z));
+          const t = this._typeFor(x, z, night);
+          if (t === 'swarm') this.spawnSwarm(new THREE.Vector3(x, h, z));
+          else this.spawn(t, new THREE.Vector3(x, h, z));
           break;
         }
       }
@@ -409,6 +504,22 @@ export class SlimeManager {
       const rooted = s.rootT > 0;
       const mv = s.T.move;
 
+      if (s.disguised) {
+        // Mimique déguisée : immobile, scintille comme un artefact… jusqu'à ce qu'on approche.
+        s.disguiseRune.rotation.y += dt * 1.2;
+        s.disguiseRune.material.emissiveIntensity = 0.35 + Math.max(0, 1 - dist / 14) * 2.2;
+        s.object.position.copy(s.pos);
+        if (dist < 4 && player.alive) {
+          s.disguised = false;
+          s.disguise.visible = false;
+          s.object.children.forEach((c) => { if (c !== s.disguise && c !== s.halo) c.visible = true; });
+          s.vel.set(0, 9, 0);
+          s.onGround = false;
+          s.attackCd = 0.4;
+          this.events.push({ type: 'mimic', pos: s.pos.clone() });
+        }
+        continue;
+      }
       if (s.T.boss && s.net && performance.now() - s.net.at < 1500) {
         // Raid : le boss est dirigé par l'hôte, on suit sa position.
         s.pos.lerp(s.net.pos, 1 - Math.exp(-dt * 8));
@@ -509,9 +620,70 @@ export class SlimeManager {
         s.pos.addScaledVector(s.vel, sdt);
         this._ground(s);
         if (aggro) s.object.rotation.y = lerpAngle(s.object.rotation.y, Math.atan2(toP.x, toP.z), sdt * 5);
+      } else if (mv === 'charge') {
+        // Rôdeur : élan (0,6 s), charge rectiligne, puis souffle quelques instants.
+        s.chargeCd = (s.chargeCd ?? 2) - sdt;
+        if (s.chargeT > 0) {
+          s.chargeT -= sdt;
+          s.vel.x = s.chargeDir.x * 24;
+          s.vel.z = s.chargeDir.z * 24;
+          if (s.chargeT <= 0) { s.restT = 1.2; s.vel.x = s.vel.z = 0; }
+        } else if (s.windupT > 0) {
+          s.windupT -= sdt;
+          s.vel.x *= 0.8; s.vel.z *= 0.8;
+          s.object.rotation.y = lerpAngle(s.object.rotation.y, Math.atan2(toP.x, toP.z), sdt * 10);
+          if (s.windupT <= 0) {
+            s.chargeDir = toP.clone().normalize();
+            s.chargeT = 0.75;
+            this.events.push({ type: 'charge', pos: s.pos.clone() });
+          }
+        } else if (s.restT > 0) {
+          s.restT -= sdt;
+        } else if (aggro && !rooted && s.chargeCd <= 0 && dist > 4 && dist < 20) {
+          s.windupT = 0.6;
+          s.chargeCd = 3.5 + Math.random() * 1.5;
+          this._ring(s.pos.clone().add(toP.clone().normalize().multiplyScalar(Math.min(dist, 16) / 2)), 2.5, 0xffa040, 0.6);
+        } else if (!rooted) {
+          const sp = aggro ? s.T.speed : s.T.speed * 0.4;
+          const dir = aggro ? toP.clone().normalize() : new THREE.Vector3(Math.cos(s.wander), 0, Math.sin(s.wander));
+          if (!aggro) s.wander += (Math.random() - 0.5) * dt;
+          s.vel.x = lerp(s.vel.x, dir.x * sp, 1 - Math.exp(-sdt * 4));
+          s.vel.z = lerp(s.vel.z, dir.z * sp, 1 - Math.exp(-sdt * 4));
+          if (aggro) s.object.rotation.y = lerpAngle(s.object.rotation.y, Math.atan2(toP.x, toP.z), sdt * 5);
+        }
+        if (rooted) { s.vel.x = 0; s.vel.z = 0; s.chargeT = 0; }
+        s.vel.y -= 24 * sdt;
+        s.pos.addScaledVector(s.vel, sdt);
+        this._ground(s);
       } else {
         this._groundMove(s, toP, dist, aggro, sdt, rooted, 0);
       }
+
+      // Grondeur : la mèche s'allume près du joueur, puis tout saute.
+      if (s.T.bomb) {
+        if (s.fuse === undefined && aggro && dist < 3.2) { s.fuse = 0.9; this.events.push({ type: 'fuse', pos: s.pos.clone() }); }
+        if (s.fuse !== undefined) {
+          s.fuse -= sdt;
+          s.squash = Math.sin(s.fuse * 30) * 0.25;
+          if (s.spark) s.spark.visible = Math.floor(s.fuse * 12) % 2 === 0;
+          if (s.fuse <= 0) { this._explode(s, player); continue; }
+        }
+      }
+      // Mage des Échos : appelle deux renforts de temps en temps.
+      if (s.T.summoner && aggro && !rooted) {
+        s.summonT = (s.summonT ?? 4) - sdt;
+        if (s.summonT <= 0 && this.list.length < 40) {
+          s.summonT = 9;
+          for (let k = 0; k < 2; k++) {
+            const a = Math.random() * Math.PI * 2;
+            const x = s.pos.x + Math.cos(a) * 3, z = s.pos.z + Math.sin(a) * 3;
+            const h = T.heightAt(x, z);
+            if (h > SEA_LEVEL + 0.3) this.spawn('green', new THREE.Vector3(x, h, z));
+          }
+          this.events.push({ type: 'summon', pos: s.pos.clone() });
+        }
+      }
+      if (s.halo) s.halo.rotation.z += dt * 2;
 
       // Attaques à distance : tous les Échos tirent, après un bref éclat
       // d'avertissement.
@@ -538,9 +710,11 @@ export class SlimeManager {
       const reach = 0.9 * s.T.scale + player.radius;
       const cy = s.pos.y + 0.4 * s.T.scale;
       const dy = Math.abs(player.pos.y + 0.6 - cy);
-      if (dist < reach && dy < 1.4 * s.T.scale && s.attackCd <= 0 && player.alive && !rooted) {
-        if (player.damage(s.T.dmg, s.pos)) this.events.push({ type: 'slimeHit', slime: s });
+      if (!s.T.bomb && dist < reach && dy < 1.4 * s.T.scale && s.attackCd <= 0 && player.alive && !rooted) {
+        const dmg = s.chargeT > 0 ? Math.round(s.T.dmg * 1.4) : s.T.dmg;
+        if (player.damage(dmg, s.pos)) this.events.push({ type: 'slimeHit', slime: s });
         s.attackCd = 1;
+        if (s.chargeT > 0) { s.chargeT = 0; s.restT = 1.2; }
       }
 
       // Squash & stretch
@@ -746,11 +920,29 @@ export class SlimeManager {
     return best;
   }
 
+  _explode(s, player) {
+    const r = 4;
+    this.events.push({ type: 'slam', pos: s.pos.clone(), radius: r, big: false, boom: true });
+    this._areaDamage(player, s.pos, r, s.T.dmg);
+    // L'explosion blesse aussi les Échos voisins.
+    for (const o of this.list) {
+      if (o !== s && o.dying < 0 && !o.T.boss && o.pos.distanceTo(s.pos) < r) { o.hp -= 2; if (o.hp <= 0) this.kill(o, true); }
+    }
+    s.fuse = undefined;
+    this.kill(s, true);
+  }
+
   kill(s, byPlayer) {
     if (s.dying >= 0) return;
+    if (s.T.bomb && byPlayer && s.fuse === undefined && !s.exploding) {
+      // Abattu avant d'exploser, le grondeur saute quand même (plus faiblement) : ça blesse les Échos voisins.
+      s.exploding = true;
+      this.events.push({ type: 'slam', pos: s.pos.clone(), radius: 3, boom: true });
+      for (const o of this.list) if (o !== s && o.dying < 0 && !o.T.boss && o.pos.distanceTo(s.pos) < 3) { o.hp -= 1; if (o.hp <= 0) this.kill(o, true); }
+    }
     s.dying = 0;
-    if (s === this.boss) this.boss = null;
-    this.events.push({ type: byPlayer ? 'slimeKilled' : 'slimeMelt', slime: s, pos: s.pos.clone(), color: s.T.color, score: s.T.score, boss: !!s.T.boss });
+    if (s === this.boss) { this.boss = null; this.lastBossPos = s.pos.clone(); }
+    this.events.push({ type: byPlayer ? 'slimeKilled' : 'slimeMelt', slime: s, pos: s.pos.clone(), color: s.T.color, score: s.T.score, boss: !!s.T.boss, elite: !!s.elite, kind: s.type });
   }
 
   clear() {

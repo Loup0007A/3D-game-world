@@ -76,7 +76,11 @@ Durée estimée : **14 à 16 minutes** par niveau (calcul à partir du nombre de
 | Nombre d'ennemis | ×1 | ×1,6 | ×2,2 → ×2,55 |
 | Régénération | 2,5/s | 1,75/s | 1/s |
 
-Nouveaux ennemis : feu follet (dès l'histoire 6), cracheur (16), golem (30), ombre (48).
+Nouveaux ennemis au fil des niveaux : feu follet (4), **Rôdeur** qui charge en ligne droite après un cercle d'avertissement (9), cracheur (14), **Grondeur** qui fonce et explose (21), golem (28), **essaims de Moucherons** (36), ombre (44), **Mage des Échos** qui tire et appelle des renforts (55), **Mimiques** déguisées en artefacts (63). Des **Échos d'élite** (halo doré, ×2,5 PV) apparaissent de plus en plus souvent et lâchent toujours du butin.
+
+**Butin** (`src/entities/loot.js`) : orbes de soin, ⚔️ Éclat de force (+50 % de dégâts 20 s), 🪶 Plume de vent (+35 % de vitesse 15 s), 🛡️ Fiole de garde (absorbe 2 coups), 📜 Parchemin d'éveil (recharge les compétences), ❤️ Cœur ancien (+5 vie max pour le niveau), 💎 Gemme (+150 points). Les élites et les Mimiques donnent du butin rare ; le gardien laisse un trésor. Les effets en cours s'affichent en haut à gauche.
+
+**La Chronique des Mondes Vivants** (`src/game/stories/saga.js`) relie les 100 niveaux : cent mondes rêvés dans l'Archive, que la Fêlure et l'Oublieur éteignent un à un. 10 Âges de 10 niveaux ; le 10e monde de chaque Âge est gardé par un Écho de l'Oublieur (Morne, la Sourdine, Sève-Noire, le Noyeur, l'Oiseau de Cendre, le Rouage Fou, le Double, Nuit-sans-Lune, Ignivore le Dernier Dragon, puis l'Oublieur au niveau 100). Dans chaque niveau, les 5 reliques racontent l'histoire du monde jusqu'à sa vérité (4e relique).
 
 ### Compétences par histoire
 

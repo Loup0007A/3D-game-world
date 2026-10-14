@@ -3,6 +3,7 @@ import { CHAPTER_TITLES, ARRIVALS, PORTALS, BOSS_NAMES, FRAGMENTS, SKILL_LINES, 
 import { SKILL_ORDER } from '../skills.js';
 import { ENEMY_UNLOCK } from '../../entities/slimes.js';
 import { mulberry32 } from '../../core/noise.js';
+import { AGES, ageOf, isAgeFinale, sagaIntro, sagaOutro, sagaKicker } from './saga.js';
 import { INTRO as ILO_INTRO, CHAPTERS as ILO_CHAPTERS } from '../story.js';
 
 export const STORY_COUNT = SEEDS.length;
@@ -46,6 +47,7 @@ export function difficulty(n, c) {
     speed: 1 + 0.32 * d + 0.06 * local,
     density: 1 + 1.2 * d + 0.35 * local,
     kingChance: 0.03 + 0.07 * d + 0.03 * local,
+    eliteChance: 0.03 + 0.12 * d,
     aggro: 26 + 10 * d,
     bossHp: 1 + 0.35 * c,
     types: Object.keys(ENEMY_UNLOCK).filter((t) => n >= ENEMY_UNLOCK[t] || (n >= ENEMY_UNLOCK[t] - 3 && c >= 6)),
@@ -79,20 +81,28 @@ export function getStory(n) {
   const pools = FRAGMENTS.map((p) => shuffle(p, rand));
   const bosses = shuffle(BOSS_NAMES, rand);
   const chapters = [];
+  const single = CHAPTER_COUNT === 1;
   for (let c = 0; c < CHAPTER_COUNT; c++) {
     const phase = Math.min(Math.floor(c / 2), 4);
     const count = relicsFor(c);
     const frags = [];
     for (let i = 0; i < count; i++) {
-      if (c === 6 && i === 0) { frags.push({ title: 'La vérité', text: twist }); continue; }
+      // Une île par niveau : les reliques racontent toute l'histoire, du
+      // premier matin à la vérité (4e relique) puis au dernier éclat.
+      if (single && i === 3) { frags.push({ title: 'La vérité', text: twist }); continue; }
+      if (!single && c === 6 && i === 0) { frags.push({ title: 'La vérité', text: twist }); continue; }
       if (c === CHAPTER_COUNT - 1 && i === count - 1) { frags.push({ title: 'Le dernier éclat', text: `Toutes les ${relics} sont réunies. ${cap(foe)} attend au-delà du portail. Il va falloir choisir.` }); continue; }
-      const t = pools[phase].shift() || FRAGMENTS[phase][Math.floor(rand() * FRAGMENTS[phase].length)];
+      const ph = single ? Math.min(i, 4) : phase;
+      const t = pools[ph].shift() || FRAGMENTS[ph][Math.floor(rand() * FRAGMENTS[ph].length)];
       frags.push({ title: fill(t[0]), text: fill(t[1]) });
     }
-    const arr = shuffle(ARRIVALS[c], rand).slice(0, 2).map(fill);
-    if (c === 0) arr.splice(0, 2, fill(ARRIVALS[0][0]), fill(ARRIVALS[0][1]));
+    // Répliques d'arrivée : le mode d'emploi pour les 3 premiers niveaux,
+    // puis des répliques de plus en plus graves au fil des niveaux.
+    const arrPhase = single ? (n <= 3 ? 0 : Math.min(8, 1 + Math.floor((n - 4) / 12))) : c;
+    const arr = shuffle(ARRIVALS[arrPhase], rand).slice(0, 2).map(fill);
+    if (arrPhase === 0) arr.splice(0, 2, fill(ARRIVALS[0][0]), fill(ARRIVALS[0][1]));
     chapters.push({
-      title: fill(CHAPTER_TITLES[c][Math.floor(rand() * CHAPTER_TITLES[c].length)]),
+      title: single ? title : fill(CHAPTER_TITLES[c][Math.floor(rand() * CHAPTER_TITLES[c].length)]),
       arrival: arr,
       fragments: frags,
       portal: fill(PORTALS[Math.floor(rand() * PORTALS.length)]),
@@ -100,7 +110,17 @@ export function getStory(n) {
     });
   }
 
+  // La Chronique : un Écho de l'Oublieur garde le 10e monde de chaque Âge.
+  const age = AGES[ageOf(n)];
+  const lieutenant = isAgeFinale(n) ? { name: age.lieutenant, line: age.lieutenantLine, dragon: !!age.dragon } : null;
+  if (lieutenant) {
+    const last = chapters[chapters.length - 1];
+    last.boss = lieutenant.name;
+    last.portal = `${lieutenant.line} Courage, ${hero}.`;
+  }
+
   const intro = [
+    ...sagaIntro(n, g === 'f'),
     ...premise.split(/(?<=[.!?])\s+/),
     `Tu t'appelles ${hero}. Tu ouvres les yeux devant une arche de pierre, sans aucun souvenir de la route.`,
     `Près de toi, ${guideKind}. « Je m'appelle ${guide}. Il faut retrouver les ${relics}, avant que ${foe} ne prenne tout. »`,
@@ -108,16 +128,16 @@ export function getStory(n) {
 
   const story = {
     n, title, hero, heroF: g === 'f', guide, guideKind, relics, foe, foeDe, enemies, world, premise, twist,
-    intro, chapters,
+    intro, chapters, lieutenant, kicker: sagaKicker(n),
     finale: {
       lines: [
-        `Le dernier gardien tombe. Le portail s'ouvre sur le cœur ${foeDe}.`,
-        twist,
+        lieutenant ? `${lieutenant.name} s'effondre. Le portail s'ouvre sur le cœur ${foeDe}.` : `Le dernier gardien tombe. Le portail s'ouvre sur le cœur ${foeDe}.`,
+        ...(single ? [] : [twist]),
         `Toutes les ${relics} brillent autour de toi. ${guide} se tait, pour une fois.`,
         'C’est à toi de choisir.',
       ],
-      a: { label: aL, lines: [...aE.split(/(?<=[.!?])\s+/), 'Fin.'] },
-      b: { label: bL, lines: [...bE.split(/(?<=[.!?])\s+/), 'Fin.'] },
+      a: { label: aL, lines: [...aE.split(/(?<=[.!?])\s+/), ...sagaOutro(n)] },
+      b: { label: bL, lines: [...bE.split(/(?<=[.!?])\s+/), ...sagaOutro(n)] },
     },
     hints: Object.fromEntries(Object.entries(HINTS).map(([k, v]) => [k, typeof v === 'string' ? fill(v) : Object.fromEntries(Object.entries(v).map(([a, b]) => [a, fill(b)]))])),
     skillLines: SKILL_LINES,
@@ -127,12 +147,13 @@ export function getStory(n) {
 
   // Histoire 1 : les textes écrits à la main du premier jeu.
   if (n === 1) {
-    story.intro = ILO_INTRO;
+    story.intro = [...sagaIntro(1, true), ...ILO_INTRO];
     for (let c = 0; c < Math.min(ILO_CHAPTERS.length, story.chapters.length); c++) {
       const src = ILO_CHAPTERS[c];
       const ch = story.chapters[c];
       if (c < 4) { ch.title = src.title; ch.arrival = src.arrival; }
-      ch.fragments = ch.fragments.map((f, i) => src.fragments[i] || f);
+      // En une seule île, on garde « La vérité » et « Le dernier éclat ».
+      ch.fragments = ch.fragments.map((f, i) => (single && i >= 3 ? f : src.fragments[i] || f));
     }
   }
   return story;

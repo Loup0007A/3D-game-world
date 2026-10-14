@@ -17,7 +17,8 @@ import { Particles } from './entities/particles.js';
 import { Input } from './core/input.js';
 import { ThirdPersonCamera } from './core/camera.js';
 import { Sfx } from './core/audio.js';
-import { lerp } from './core/noise.js';
+import { lerp, mulberry32 } from './core/noise.js';
+import { Loot, LOOT, rollLoot } from './entities/loot.js';
 import { Hud } from './ui/hud.js';
 import { StoryUI } from './ui/story-ui.js';
 import { SkillSystem, SKILLS, UPGRADES } from './game/skills.js';
@@ -93,6 +94,7 @@ if (story && storyN !== 1) {
   player.setOutfit(c(h, 0.45, 0.32), c(h + 0.45, 0.65, 0.5), c(h + 0.08, 0.25, 0.22));
 }
 const orbs = new Orbs(scene);
+const loot = new Loot(scene);
 const skills = new SkillSystem(scene, particles);
 const shared = { uTime: { value: 0 } };
 
@@ -167,6 +169,11 @@ async function buildWorld(n, c, withLoading = true) {
   slimes.playerDmgMul = artefactDmgMul();
   slimes.godMode = !!divine.god;
   bossDamageHook();
+  // Mimiques : déguisées en artefacts, quelques-unes par île à partir du niveau 63.
+  if (diff.types.includes('mimic')) {
+    const mr = mulberry32(seed ^ 0x313);
+    slimes.placeMimics(terrain.scatterLand(2 + Math.floor(n / 30), 90, mr, [spawn, ...relics.items.map((r) => r.pos)]));
+  }
   await step(0.95, 'Presque prêt…');
 
   world = { seed, terrain, water, vegetation, fish, birds, relics, portal, spawn, artifacts };
@@ -199,6 +206,7 @@ function disposeWorld() {
   w.relics.dispose(); w.portal.dispose(); w.artifacts.dispose();
   slimes?.clear();
   orbs.clear();
+  loot.clear();
   skills.clear();
   world = null;
   builtFor = null;
@@ -209,7 +217,7 @@ function save() {
   if (!storyN || helperRaid) return; // un allié venu aider ne touche pas à sa propre sauvegarde
   const taken = world ? world.relics.items.map((r, i) => (r.taken ? i : -1)).filter((i) => i >= 0) : [];
   const artsTaken = world ? world.artifacts.takenIndices() : [];
-  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken, divine });
+  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken, divine, hearts });
 }
 function readSave() {
   const s = store.get(SAVE_KEY, null);
@@ -278,6 +286,10 @@ function report(statut, raison, extra = '', fin = true) {
 // histoire (+100 vie, attaque ×2), pour ne pas rendre le jeu trop facile.
 const ARTEFACT = { hp: 2, atk: 0.02, max: 50 };
 let artefacts = 0;
+// Cœurs anciens (butin rare) : +5 de vie max chacun, jusqu'à la fin du niveau.
+let hearts = 0;
+// Effets temporaires du butin (fin, en ms).
+const buffs = { power: 0, swift: 0 };
 // Pouvoirs légendaires actifs jusqu'à la fin de l'île en cours.
 let divine = {};
 function applyDivine() {
@@ -287,10 +299,56 @@ function applyDivine() {
 const artefactBonusCount = () => Math.min(artefacts, ARTEFACT.max);
 const artefactDmgMul = () => 1 + artefactBonusCount() * ARTEFACT.atk;
 function applyArtefacts() {
-  player.bonusHealth = artefactBonusCount() * ARTEFACT.hp;
+  player.bonusHealth = artefactBonusCount() * ARTEFACT.hp + hearts * 5;
   skills.apply(player);
   if (slimes) slimes.playerDmgMul = artefactDmgMul();
 }
+// ─── Butin ─────────────────────────────────────────────────────────
+function dropLoot(e) {
+  if (Math.random() < 0.3) orbs.drop(e.pos);
+  const table = e.kind === 'mimic' ? 'rare' : e.elite ? 'elite' : 'common';
+  const k = rollLoot(table);
+  if (k) loot.drop(e.pos, k);
+  if (e.elite || e.kind === 'mimic') { const k2 = rollLoot(table); if (k2) loot.drop(e.pos, k2); }
+}
+function onLoot(kind, pos) {
+  const L = LOOT[kind];
+  particles.burst(pos, L.color, 30, { speed: 4, up: 4, gravity: -6, size: 0.3, life: 0.8 });
+  sfx.heal();
+  score += L.score;
+  const now = performance.now();
+  let text = '';
+  switch (kind) {
+    case 'power': buffs.power = Math.max(buffs.power, now) + 20000; text = '+50 % de dégâts pendant 20 s'; break;
+    case 'swift': buffs.swift = Math.max(buffs.swift, now) + 15000; text = '+35 % de vitesse pendant 15 s'; break;
+    case 'ward': player.wardCharges = Math.min(player.wardCharges + 2, 6); text = `absorbe les ${player.wardCharges} prochains coups`; break;
+    case 'focus': skills.cooldowns = {}; text = 'toutes tes compétences sont prêtes'; break;
+    case 'heart': hearts++; applyArtefacts(); player.health = Math.min(player.health + 5, player.maxHealth); text = `+5 de vie max (${player.maxHealth})`; save(); break;
+    case 'gem': text = `+${L.score} points`; break;
+    default: break;
+  }
+  hud.toast(`${L.icon} <b>${L.name}</b> : ${text}`, 2600);
+  tickBuffs(true);
+}
+let buffsHtml = '';
+function tickBuffs(force = false) {
+  const now = performance.now();
+  const power = now < buffs.power, swift = now < buffs.swift;
+  if (slimes) slimes.playerDmgMul = artefactDmgMul() * (power ? 1.5 : 1);
+  player.speedMul = swift ? 1.35 : 1;
+  const parts = [];
+  if (power) parts.push(`<span>⚔️ ${Math.ceil((buffs.power - now) / 1000)} s</span>`);
+  if (swift) parts.push(`<span>🪶 ${Math.ceil((buffs.swift - now) / 1000)} s</span>`);
+  if (player.wardCharges > 0) parts.push(`<span>🛡️ ×${player.wardCharges}</span>`);
+  if (hearts > 0) parts.push(`<span>❤️ ×${hearts}</span>`);
+  const html = parts.join('');
+  if (force || html !== buffsHtml) {
+    buffsHtml = html;
+    const el = $('buffs');
+    if (el) { el.innerHTML = html; el.classList.toggle('hidden', !html); }
+  }
+}
+
 function onArtefact(a) {
   const p = a.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
   if (a.legend) {
@@ -454,7 +512,10 @@ $('play-btn').addEventListener('click', async () => {
   if (builtFor !== `${storyN}:1`) await buildWorld(storyN, 1);
   else placeAtArch();
   artefacts = 0;
+  hearts = 0;
   divine = {};
+  buffs.power = buffs.swift = 0;
+  player.wardCharges = 0;
   applyStartKit();
   applyArtefacts();
   applyDivine();
@@ -464,7 +525,7 @@ $('play-btn').addEventListener('click', async () => {
   storyBg = 'flyover';
   state = 'story';
   $('title').classList.add('hidden');
-  await ui.sequence(story.intro, { kicker: `Histoire ${storyN} · ${story.title}` });
+  await ui.sequence(story.intro, { kicker: `${story.kicker} · ${story.title}` });
   save();
   startChapter();
   notify('start');
@@ -485,6 +546,7 @@ $('continue-btn').addEventListener('click', async () => {
   if (builtFor !== `${storyN}:${chapter}`) await buildWorld(storyN, chapter);
   else placeAtArch();
   artefacts = s.arts || 0;
+  hearts = s.hearts || 0;
   divine = s.divine || {};
   skills.load(s.skills, player);
   applyArtefacts();
@@ -639,7 +701,8 @@ function respawn() {
 
 // ─── Gardien du portail ────────────────────────────────────────────
 // Dragon : à partir de 90 de Puissance sur le S.I.D. (ou raid contre un dragon).
-const isDragon = () => (raid.active || helperRaid ? raid.dragon || !!helperRaid?.dragon : sidPuissance >= 90);
+// Dragon : Puissance 90+ sur le S.I.D., ou gardien d'Âge draconique (Ignivore, l'Oublieur).
+const isDragon = () => !!story.lieutenant?.dragon || (raid.active || helperRaid ? raid.dragon || !!helperRaid?.dragon : sidPuissance >= 90);
 function ensureBoss() {
   const w = world;
   if (!w || w.portal.active || w.relics.collected < w.relics.total || slimes.boss) return;
@@ -649,8 +712,17 @@ function ensureBoss() {
   const dragon = isDragon();
   const b = slimes.spawn(dragon ? 'dragon' : 'boss', p);
   b.guard = w.spawn.clone();
-  b.name = dragon ? `Dragon · ${story.chapters[chapter - 1].boss}` : story.chapters[chapter - 1].boss;
+  const lt = story.lieutenant;
+  b.name = lt ? lt.name : dragon ? `Dragon · ${story.chapters[chapter - 1].boss}` : story.chapters[chapter - 1].boss;
   if (chapter === CHAPTER_COUNT) { b.T.scale *= 1.25; b.object.scale.setScalar(b.T.scale); }
+  if (lt) {
+    // Écho de l'Oublieur (fin d'Âge) : plus grand, plus résistant, teinte d'ombre.
+    b.T = { ...b.T, scale: b.T.scale * 1.15 };
+    b.object.scale.setScalar(b.T.scale);
+    b.hp = b.maxHp = Math.round(b.maxHp * 1.5);
+    b.mat.color.lerp(new THREE.Color(0x3a1060), 0.45);
+    b.mat.emissive.set(0x5a1890);
+  }
   if (raid.active) scaleRaidBoss(b);
   return b;
 }
@@ -816,6 +888,10 @@ function handleEvents() {
         sfx.boltHit();
         particles.burst(player.pos.clone().add(new THREE.Vector3(0, 1, 0)), 0x9ff3ff, 14, { speed: 4, size: 0.25 });
         break;
+      case 'ward':
+        particles.burst(player.pos.clone().add(new THREE.Vector3(0, 1.1, 0)), 0x5aa0ff, 18, { speed: 4, up: 2, gravity: 0, size: 0.3, life: 0.5 });
+        hud.toast(e.left ? `🛡️ Coup absorbé (encore ${e.left})` : '🛡️ Coup absorbé — la fiole est vide', 1800);
+        break;
       case 'dodge':
         particles.burst(player.pos.clone().add(new THREE.Vector3(0, 1.1, 0)), 0x9fe8ff, 16, { speed: 4, up: 2, gravity: 0, size: 0.28, life: 0.5 });
         break;
@@ -885,8 +961,16 @@ function handleEvents() {
         particles.burst(e.pos.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xffffff, 8, { speed: 1, up: 5, gravity: 1, size: 0.25, life: 1.4 });
         score += e.score;
         if (e.boss) onBossDown();
-        else if (Math.random() < 0.38) orbs.drop(e.pos);
+        else dropLoot(e);
+        if (e.elite) hud.toast('⭐ <b>Écho d\'élite</b> abattu !', 2200);
         break;
+      case 'mimic':
+        sfx.hurt();
+        particles.burst(e.pos.clone().add(new THREE.Vector3(0, 1, 0)), 0xffb347, 40, { speed: 6, up: 6, gravity: -10, size: 0.35, life: 0.8 });
+        hud.toast("😱 Ce n'était pas un artefact… c'est une <b>Mimique</b> !", 3000);
+        break;
+      case 'fuse': sfx.hit(); break;
+      case 'charge': sfx.swing(); break;
       case 'slimeHurt':
         sfx.hit();
         particles.burst(e.slime.pos.clone().add(new THREE.Vector3(0, 0.6 * e.slime.T.scale, 0)), e.slime.T.color, 12, { speed: 4, size: 0.25 });
@@ -896,7 +980,7 @@ function handleEvents() {
         break;
       case 'slam':
         sfx.nova();
-        particles.burst(e.pos.clone().add(new THREE.Vector3(0, 0.2, 0)), 0xb8a080, e.big ? 60 : 30, { speed: e.radius * 2, up: 2, gravity: -6, size: 0.45, life: 0.7 });
+        particles.burst(e.pos.clone().add(new THREE.Vector3(0, 0.2, 0)), e.boom ? 0xff7a2a : 0xb8a080, e.big ? 60 : e.boom ? 50 : 30, { speed: e.radius * 2, up: e.boom ? 5 : 2, gravity: -6, size: 0.45, life: 0.7 });
         if (player.pos.distanceTo(e.pos) < 25) cam.shake = Math.min(cam.shake + (e.big ? 0.8 : 0.4), 1);
         break;
       case 'spit': sfx.squish(); break;
@@ -928,6 +1012,9 @@ function onBossDown() {
   hud.toast('<b>Le gardien est vaincu.</b> Le portail est ouvert.', 5000);
   ui.say(chapter === CHAPTER_COUNT ? `C'est fini, ${story.hero}. Va au portail.` : 'Le portail est libre. Allons-y quand tu veux.');
   orbs.drop(player.pos.clone().add(new THREE.Vector3(1.5, 0, 0)));
+  // Trésor du gardien.
+  const bp = slimes.lastBossPos || player.pos;
+  for (const k of ['gem', 'heart', rollLoot('elite'), rollLoot('elite')]) if (k) loot.drop(bp, k);
   orbs.drop(player.pos.clone().add(new THREE.Vector3(-1.5, 0, 0)));
   save();
 }
@@ -1069,6 +1156,8 @@ function update(dt) {
       slimes.update(dt, player, { night, elapsed });
       w.relics.update(dt, elapsed, player, onRelic, onRelicApproach);
       w.artifacts.update(dt, elapsed, player, onArtefact);
+      loot.update(dt, elapsed, player, onLoot, skills.has('magnet') ? 22 : 0);
+      tickBuffs();
       raid.update(dt, player, slimes.boss);
       // Niveau 10+ : s'éloigner du gardien lui rend ses forces.
       const gb = slimes.boss;
@@ -1176,5 +1265,5 @@ function simulate(sec, keys = []) {
 window.__game = {
   get world() { return world; }, get slimes() { return slimes; }, get score() { return score; }, get chapter() { return chapter; }, set chapter(v) { chapter = v; },
   get state() { return state; }, get artefacts() { return artefacts; }, get divine() { return divine; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
-  story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES, raid, startHelperRaid,
+  story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES, raid, startHelperRaid, loot, buffs,
 };

@@ -280,3 +280,7 @@ a.btn { text-decoration: none; text-align: center; display: inline-block; }
 .t-locked b { font: 700 15px var(--display); letter-spacing: 0.1em; color: #ff9aa8; }
 .t-locked span { color: var(--ink-dim); font-size: 14px; }
 .hub-card.locked { opacity: 0.4; cursor: not-allowed; }
+
+/* Effets du butin en cours (haut gauche) */
+.buffs{position:fixed;top:calc(64px + env(safe-area-inset-top));left:14px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
+.buffs span{background:rgba(10,14,28,.72);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:3px 10px;font:600 13px/1.4 system-ui,sans-serif;color:#f3eede;backdrop-filter:blur(4px)}
