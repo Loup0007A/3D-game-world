@@ -15,6 +15,9 @@ SEEDS.forEach((seed, i) => {
     .replace(/<meta name="description" content="[^"]*"/, `<meta name="description" content="${seed[10].replaceAll('"', '&quot;')}"`);
   writeFileSync(`dist/${n}/index.html`, page);
 });
+// Niveau caché 101.
+mkdirSync('dist/101', { recursive: true });
+writeFileSync('dist/101/index.html', sub.replace(/<title>[^<]*<\/title>/, "<title>Le Trône de l'Archive · Mondes Vivants</title>"));
 // Page 404 de GitHub Pages : renvoie vers la liste.
 writeFileSync('dist/404.html', html.replace('<head>', '<head><base href="/" />').replace(/<script type="module"[^>]*><\/script>/, '<script>location.replace(location.pathname.split("/").slice(0, 2).join("/") + "/");</script>'));
 writeFileSync('dist/.nojekyll', '');

@@ -32,7 +32,7 @@ const sparkMats = KINDS.map((k) => new THREE.MeshBasicMaterial({ color: k.color,
 
 export class Artifacts {
   // avoid : points (Vector3) à éviter (reliques, arche).
-  constructor(scene, terrain, seed, count = ARTEFACTS_PER_ISLAND, avoid = []) {
+  constructor(scene, terrain, seed, count = ARTEFACTS_PER_ISLAND, avoid = [], opts = {}) {
     this.scene = scene;
     const rand = mulberry32(seed ^ 0xa27e5);
     // Bien répartis sur toute l'île, souvent en forêt ou en altitude.
@@ -40,7 +40,7 @@ export class Artifacts {
     this.items = pts.map((p, i) => {
       const kind = i % KINDS.length;
       const roll = rand();
-      const legend = roll < LEGENDARY.god.chance ? 'god' : roll < LEGENDARY.god.chance + LEGENDARY.shield.chance ? 'shield' : null;
+      const legend = opts.noLegend ? null : roll < LEGENDARY.god.chance ? 'god' : roll < LEGENDARY.god.chance + LEGENDARY.shield.chance ? 'shield' : null;
       const g = new THREE.Group();
       g.position.copy(p);
       g.rotation.y = rand() * Math.PI * 2;

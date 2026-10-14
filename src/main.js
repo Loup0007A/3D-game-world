@@ -25,6 +25,8 @@ import { SkillSystem, SKILLS, UPGRADES } from './game/skills.js';
 import { sendResult, uid, passthroughParams, getEmail, setEmail, isEmail } from './game/report.js';
 import { getStory, storyMeta, difficulty, relicsFor, estimateMinutes, STORY_COUNT, CHAPTER_COUNT } from './game/stories/index.js';
 import { Raid, helperRaid, sidPuissance, embedded } from './game/raid.js';
+import { SECRET_LEVEL, SECRET_SEED, WAVES, getSecretStory, secretMeta } from './game/secret.js';
+import { Cinematic } from './game/cinematic.js';
 
 const $ = (id) => document.getElementById(id);
 const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
@@ -43,14 +45,15 @@ const last = parts[parts.length - 1] || '';
 const pathN = /^\d+$/.test(last) ? parseInt(last, 10) : NaN;
 const queryN = parseInt(new URLSearchParams(location.search).get('story'), 10);
 const PATH_MODE = Number.isFinite(pathN);
-const storyN = [pathN, queryN].find((v) => Number.isFinite(v) && v >= 1 && v <= STORY_COUNT) || null;
+const storyN = [pathN, queryN].find((v) => Number.isFinite(v) && ((v >= 1 && v <= STORY_COUNT) || v === SECRET_LEVEL)) || null;
+const SECRET = storyN === SECRET_LEVEL;
 const QUERY_LINKS = location.protocol === 'file:' || import.meta.env.DEV || (!PATH_MODE && Number.isFinite(queryN));
 // Les paramètres de l'URL (identifiant du joueur…) suivent d'une page à l'autre.
 const keepQ = () => { const q = passthroughParams().toString(); return q ? `&${q}` : ''; };
 const keepQ1 = () => { const q = passthroughParams().toString(); return q ? `?${q}` : ''; };
 const linkTo = (n) => (QUERY_LINKS ? `?story=${n}${keepQ()}` : (PATH_MODE ? `../${n}/` : `./${n}/`) + keepQ1());
 const hubLink = () => (QUERY_LINKS ? location.pathname + keepQ1() : (PATH_MODE ? '../' : './') + keepQ1());
-const story = storyN ? getStory(storyN) : null;
+const story = storyN ? (SECRET ? getSecretStory() : getStory(storyN)) : null;
 const EMBEDDED = window.self !== window.top;
 
 function notify(type, extra = {}) {
@@ -142,7 +145,7 @@ async function buildWorld(n, c, withLoading = true) {
   const msg = $('load-msg');
   const step = async (p, m) => { if (withLoading) { fill.style.width = `${p * 100}%`; msg.textContent = m; await frame(); } };
   if (withLoading) load.classList.remove('hidden');
-  const seed = chapterSeed(n, c);
+  const seed = n === SECRET_LEVEL ? SECRET_SEED : chapterSeed(n, c);
 
   if (world) disposeWorld();
   await step(0.05, 'Le bruit prend forme…');
@@ -152,9 +155,9 @@ async function buildWorld(n, c, withLoading = true) {
   const water = new Water(terrain);
   scene.add(water.mesh);
   const spawn = terrain.findSpawn();
-  const relics = new Relics(scene, terrain, seed, relicsFor(c - 1), [spawn]);
+  const relics = new Relics(scene, terrain, seed, n === SECRET_LEVEL ? 0 : relicsFor(c - 1), [spawn]);
   const portal = new Portal(scene, terrain, spawn);
-  const artifacts = new Artifacts(scene, terrain, seed, ARTEFACTS_PER_ISLAND, [spawn, ...relics.items.map((r) => r.pos)]);
+  const artifacts = new Artifacts(scene, terrain, seed, ARTEFACTS_PER_ISLAND, [spawn, ...relics.items.map((r) => r.pos)], { noLegend: n === SECRET_LEVEL });
   await step(0.5, 'Les forêts poussent…');
   const exclude = [{ x: spawn.x, z: spawn.z, r: 18 }, ...relics.items.map((r) => ({ x: r.pos.x, z: r.pos.z, r: 6 }))];
   const vegetation = new Vegetation(terrain, seed, exclude);
@@ -164,7 +167,11 @@ async function buildWorld(n, c, withLoading = true) {
   scene.add(fish.mesh);
   const birds = new Birds(terrain, seed, shared);
   scene.add(birds.mesh);
-  diff = difficulty(n, c - 1);
+  diff = difficulty(Math.min(n, STORY_COUNT), c - 1);
+  if (n === SECRET_LEVEL) {
+    // Niveau caché : pas d'Échos ordinaires, seulement les vagues, et tout est plus dur.
+    diff = { ...diff, density: 0, types: [], kingChance: 0, eliteChance: 0, hp: diff.hp * 1.6, dmg: diff.dmg * 1.4, regen: diff.regen * 0.5, bossHp: 1 };
+  }
   slimes = new SlimeManager(scene, terrain, diff);
   slimes.playerDmgMul = artefactDmgMul();
   slimes.godMode = !!divine.god;
@@ -217,7 +224,7 @@ function save() {
   if (!storyN || helperRaid) return; // un allié venu aider ne touche pas à sa propre sauvegarde
   const taken = world ? world.relics.items.map((r, i) => (r.taken ? i : -1)).filter((i) => i >= 0) : [];
   const artsTaken = world ? world.artifacts.takenIndices() : [];
-  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken, divine, hearts });
+  store.set(SAVE_KEY, { v: 3, chapter, score, skills: skills.serialize(), fragments, flags, playTime: Math.round(playTime), taken, run, arts: artefacts, artsTaken, divine, hearts, wave: secret.wave });
 }
 function readSave() {
   const s = store.get(SAVE_KEY, null);
@@ -399,18 +406,20 @@ const starStr = (k) => '★'.repeat(k) + `<i>${'★'.repeat(5 - k)}</i>`;
 
 function renderTitle() {
   if (!story) return;
-  $('t-kicker').textContent = `Histoire ${storyN} / ${STORY_COUNT}`;
+  $('t-kicker').textContent = SECRET ? 'Niveau caché · 101' : `Histoire ${storyN} / ${STORY_COUNT}`;
   $('t-title').textContent = story.title;
   $('t-premise').textContent = story.premise;
   const est = estimateMinutes(storyN);
-  $('t-meta').innerHTML = `<span class="stars">${starStr(story.stars)}</span> · ≈ ${fmtTime(est)} · une île, un gardien · ${story.plan.start.length} compétence${story.plan.start.length > 1 ? 's' : ''} au départ, ${story.plan.unlocks.length} à retrouver`;
+  $('t-meta').innerHTML = SECRET
+    ? `<span class="stars">${starStr(5)}</span> · 5 épreuves · seul, sans raid · toutes les compétences · récompense : rang Divin sur le S.I.D.`
+    : `<span class="stars">${starStr(story.stars)}</span> · ≈ ${fmtTime(est)} · une île, un gardien · ${story.plan.start.length} compétence${story.plan.start.length > 1 ? 's' : ''} au départ, ${story.plan.unlocks.length} à retrouver`;
   const s = readSave();
   const cont = $('continue-btn');
   const open = isUnlocked(storyN);
   $('t-locked').classList.toggle('hidden', open);
   if (!open) {
     const p = progress() + 1;
-    $('t-locked-msg').textContent = `Termine d'abord l'histoire ${p} : « ${storyMeta(p).title} ».`;
+    $('t-locked-msg').textContent = SECRET ? 'Cette porte ne s’ouvre qu’une fois les cent mondes sauvés.' : `Termine d'abord l'histoire ${p} : « ${storyMeta(p).title} ».`;
     $('t-locked-link').href = linkTo(p);
     $('t-locked-link').textContent = `Aller à l'histoire ${p} →`;
   }
@@ -441,6 +450,13 @@ function renderHub() {
     html += `<a class="hub-card${done.includes(n) ? ' done' : started ? ' started' : ''}" href="${linkTo(n)}">
       <div class="n"><span>${n}</span><span class="stars">${starStr(m.stars)}</span></div>
       <b>${esc(m.title)}</b><span>${esc(m.hero)} · ${m.skills} compétences</span></a>`;
+  }
+  // Niveau caché : n'apparaît qu'une fois les 100 mondes sauvés.
+  if (isUnlocked(SECRET_LEVEL)) {
+    const m = secretMeta();
+    html += `<a class="hub-card secret${done.includes(SECRET_LEVEL) ? ' done' : ''}" href="${linkTo(SECRET_LEVEL)}">
+      <div class="n"><span>101</span><span class="stars">${starStr(5)}</span></div>
+      <b>✦ ${esc(m.title)} ✦</b><span>Niveau caché · seul · rang Divin</span></a>`;
   }
   grid.innerHTML = html;
 }
@@ -513,6 +529,7 @@ $('play-btn').addEventListener('click', async () => {
   else placeAtArch();
   artefacts = 0;
   hearts = 0;
+  secret.wave = 0;
   divine = {};
   buffs.power = buffs.swift = 0;
   player.wardCharges = 0;
@@ -547,6 +564,7 @@ $('continue-btn').addEventListener('click', async () => {
   else placeAtArch();
   artefacts = s.arts || 0;
   hearts = s.hearts || 0;
+  secret.wave = SECRET ? Math.min(s.wave || 0, WAVES.length - 1) : 0;
   divine = s.divine || {};
   skills.load(s.skills, player);
   applyArtefacts();
@@ -574,6 +592,7 @@ function startChapter(resumed = false) {
   if (left > 0) hud.toast(`Trouve les <b>${left} reliques</b> de l'île`, 4200);
   ensureBoss();
   notify('chapter', { chapter });
+  if (SECRET) secretBegin(resumed);
 }
 
 $('resume-btn').addEventListener('click', play);
@@ -696,6 +715,7 @@ function respawn() {
   play();
   const b = ensureBoss();
   if (b && kept) { b.maxHp = kept.maxHp; b.hp = kept.hp; }
+  if (SECRET) secretRestartWave();
   if (!flags.firstDeath) { flags.firstDeath = true; ui.say(story.hints.firstDeath); }
 }
 
@@ -704,6 +724,7 @@ function respawn() {
 // Dragon : Puissance 90+ sur le S.I.D., ou gardien d'Âge draconique (Ignivore, l'Oublieur).
 const isDragon = () => !!story.lieutenant?.dragon || (raid.active || helperRaid ? raid.dragon || !!helperRaid?.dragon : sidPuissance >= 90);
 function ensureBoss() {
+  if (SECRET) return; // niveau 101 : les vagues s'en chargent
   const w = world;
   if (!w || w.portal.active || w.relics.collected < w.relics.total || slimes.boss) return;
   const a = w.portal.group.rotation.y;
@@ -725,6 +746,154 @@ function ensureBoss() {
   }
   if (raid.active) scaleRaidBoss(b);
   return b;
+}
+
+// ─── Niveau caché 101 : vagues et cinématiques ─────────────────────
+const cine = new Cinematic();
+const secret = { wave: 0, mobs: [], active: false, next: 0, center: null };
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+function arenaCenter() {
+  const w = world;
+  const a = w.portal.group.rotation.y;
+  const c = w.spawn.clone().add(V3(-Math.sin(a), 0, -Math.cos(a)).multiplyScalar(30));
+  c.y = Math.max(w.terrain.heightAt(c.x, c.z), SEA_LEVEL);
+  return c;
+}
+
+function spawnWave(i) {
+  const wave = WAVES[i];
+  const c = secret.center;
+  const mobs = [];
+  let k = 0;
+  const total = wave.spawn.reduce((a, [, n]) => a + n, 0);
+  for (const [type, n, opts] of wave.spawn) {
+    for (let j = 0; j < n; j++, k++) {
+      const ang = (k / total) * Math.PI * 2 + i;
+      const r = wave.boss ? 18 : 16 + (k % 2) * 8;
+      const p = V3(c.x + Math.cos(ang) * r, 0, c.z + Math.sin(ang) * r);
+      p.y = Math.max(world.terrain.heightAt(p.x, p.z), SEA_LEVEL);
+      const m = slimes.spawn(type, p, opts || {});
+      m.guard = c.clone();
+      if (!m.T.boss) m.name = wave.name;
+      else m.name = 'Le Primordial';
+      mobs.push(m);
+    }
+  }
+  secret.mobs = mobs;
+  secret.active = true;
+}
+
+// Plans de caméra autour d'une cible.
+function orbitShots(target, { title, text, r = 26, h = 12, dur = 5, look = 3 } = {}) {
+  const a0 = Math.random() * Math.PI * 2;
+  const p = (a, rr, hh) => V3(target.x + Math.cos(a) * rr, target.y + hh, target.z + Math.sin(a) * rr);
+  return { from: p(a0, r * 1.5, h * 1.8), to: p(a0 + 0.9, r, h), look: target.clone().add(V3(0, look, 0)), dur, title, text };
+}
+
+async function playCinematic(shots) {
+  setState('cinematic');
+  player.invuln = 99;
+  await cine.play(shots);
+  player.invuln = 1;
+  if (player.alive) play();
+}
+
+// Le Trône : une estrade de pierre, des colonnes et des runes d'or.
+function buildThrone(c) {
+  if (secret.throne) return;
+  const g = new THREE.Group();
+  const stone = new THREE.MeshStandardMaterial({ color: 0x4a4550, roughness: 0.85, flatShading: true });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffd34d, emissive: 0xb08000, emissiveIntensity: 1.4, roughness: 0.3, metalness: 0.8 });
+  for (let k = 0; k < 3; k++) {
+    const step = new THREE.Mesh(new THREE.CylinderGeometry(7 - k * 1.8, 7.4 - k * 1.8, 0.7, 12), stone);
+    step.position.y = 0.35 + k * 0.7;
+    step.receiveShadow = step.castShadow = true;
+    g.add(step);
+  }
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1, 2), stone);
+  seat.position.y = 2.6;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(2.6, 4.5, 0.6), stone);
+  back.position.set(0, 4.6, -0.9);
+  const crown = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.12, 8, 24), gold);
+  crown.position.set(0, 7.2, -0.9);
+  g.add(seat, back, crown);
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 9, 8), stone);
+    col.position.set(Math.cos(a) * 12, 4.5, Math.sin(a) * 12);
+    col.castShadow = true;
+    const rune = new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), gold);
+    rune.position.set(Math.cos(a) * 12, 9.6, Math.sin(a) * 12);
+    g.add(col, rune);
+  }
+  g.position.copy(c);
+  scene.add(g);
+  secret.throne = g;
+}
+
+async function secretBegin(resumed) {
+  secret.center = arenaCenter();
+  const c = secret.center;
+  buildThrone(c);
+  env.time = 0.78; // crépuscule doré
+  if (!resumed && secret.wave === 0) {
+    await playCinematic([
+      { from: V3(c.x + 160, c.y + 90, c.z + 160), to: V3(c.x + 70, c.y + 40, c.z + 50), look: c.clone(), lookTo: c.clone().add(V3(0, 6, 0)), dur: 6, title: "Le Trône de l'Archive", text: 'Au-dessus des cent mondes, une île que personne n’avait jamais vue.' },
+      { from: V3(c.x - 50, c.y + 8, c.z + 40), to: V3(c.x - 20, c.y + 4, c.z + 10), look: c.clone().add(V3(0, 4, 0)), dur: 5, text: 'Ici, pas de reliques. Seulement cinq épreuves, et le Trône au bout.' },
+      { from: player.pos.clone().add(V3(6, 3, 6)), to: player.pos.clone().add(V3(2, 2.2, 3)), look: player.pos.clone().add(V3(0, 1.6, 0)), dur: 4, text: 'Personne ne viendra t’aider. C’est l’épreuve d’un seul.' },
+    ]);
+  }
+  await startWave(secret.wave, true);
+}
+
+async function startWave(i, withCinematic) {
+  secret.wave = i;
+  slimes.clear();
+  spawnWave(i);
+  save();
+  const wave = WAVES[i];
+  const first = secret.mobs[0];
+  if (withCinematic) {
+    const shots = [orbitShots(secret.center, { title: wave.title, text: wave.text, r: 34, h: 18, dur: 5, look: 4 })];
+    if (first) {
+      const sc = first.T.scale;
+      shots.push({ from: first.pos.clone().add(V3(9 * sc, 4 * sc, 9 * sc)), to: first.pos.clone().add(V3(5 * sc, 2.5 * sc, -4 * sc)), look: first.pos.clone().add(V3(0, 1.5 * sc, 0)), dur: 3.5, text: wave.name, shake: wave.boss ? 0.15 : 0 });
+    }
+    await playCinematic(shots);
+  }
+  hud.toast(`<b>${wave.title}</b> · ${wave.name}`, 3500);
+}
+
+function secretRestartWave() {
+  if (!secret.center) return;
+  spawnWave(secret.wave);
+  hud.toast(`L'épreuve recommence : <b>${WAVES[secret.wave].name}</b>`, 3500);
+}
+
+// Appelé à chaque image : vague terminée ? (la dernière se termine avec onBossDown)
+function secretTick() {
+  if (!secret.active || WAVES[secret.wave].boss || state !== 'playing') return;
+  if (secret.mobs.some((m) => m.dying < 0)) return;
+  secret.active = false;
+  secret.wave++;
+  const c = player.pos.clone();
+  orbs.drop(c.clone().add(V3(1.5, 0, 0)));
+  orbs.drop(c.clone().add(V3(-1.5, 0, 0)));
+  for (const k of ['power', 'ward', rollLoot('elite')]) if (k) loot.drop(c, k);
+  hud.toast('Épreuve réussie. Reprends ton souffle…', 4000);
+  save();
+  const next = secret.wave;
+  setTimeout(() => { if (player.alive && secret.wave === next && !secret.active) startWave(next, true); }, 5000);
+}
+
+async function secretVictory() {
+  secret.active = false;
+  const p = player.pos.clone();
+  await playCinematic([
+    { from: p.clone().add(V3(30, 25, 30)), to: p.clone().add(V3(12, 6, 10)), look: p.clone().add(V3(0, 2, 0)), dur: 6, title: 'Le Primordial est vaincu', text: "Le premier rêve de l'Archive s'agenouille devant toi." },
+    { from: world.portal.pos.clone().add(V3(10, 5, 10)), to: world.portal.pos.clone().add(V3(4, 3, 6)), look: world.portal.pos.clone().add(V3(0, 3, 0)), dur: 4, text: 'Le Trône est libre. Va au portail.' },
+  ]);
 }
 
 // ─── Raid de boss à plusieurs ──────────────────────────────────────
@@ -796,7 +965,7 @@ $('raid-btn').addEventListener('click', () => {
 });
 // Le bouton n'apparaît que si l'on est mort face au boss, dans le S.I.D.
 function updateRaidButton() {
-  const canAsk = embedded && !helperRaid && !raid.active && slimes?.boss && slimes.boss.dying < 0 && slimes.boss.pos.distanceTo(player.pos) < 90;
+  const canAsk = embedded && !SECRET && !helperRaid && !raid.active && slimes?.boss && slimes.boss.dying < 0 && slimes.boss.pos.distanceTo(player.pos) < 90;
   $('raid-btn').classList.toggle('hidden', !canAsk);
   $('raid-btn').disabled = false;
   if (!raid.active) $('raid-note').classList.add('hidden');
@@ -861,6 +1030,7 @@ async function nextWorld() {
     $('c-stats').textContent = `Fin choisie : « ${end.label} » · ${score} points · ${fmtTime(playTime / 60)} de jeu`;
     const next = $('c-next');
     if (storyN < STORY_COUNT) { next.href = linkTo(storyN + 1); next.textContent = `Histoire ${storyN + 1} : ${storyMeta(storyN + 1).title} →`; next.style.display = ''; }
+    else if (storyN === STORY_COUNT) { next.href = linkTo(SECRET_LEVEL); next.textContent = 'Une porte que personne n’avait vue s’est ouverte… →'; next.style.display = ''; }
     else next.style.display = 'none';
     $('c-all').href = hubLink();
     setState('complete');
@@ -993,6 +1163,7 @@ function handleEvents() {
 }
 
 function onBossDown() {
+  if (SECRET) setTimeout(() => secretVictory(), 1500);
   if (raid.active || helperRaid) raidWon = true;
   if (raid.active) {
     raid.send('won');
@@ -1126,7 +1297,11 @@ function update(dt) {
   const w = world;
   const flyover = state === 'title' || state === 'hub' || (state === 'story' && storyBg === 'flyover');
 
-  if (flyover) {
+  if (cine.active) {
+    cine.update(dt, camera);
+    env.update(dt, cine.focus, elapsed);
+    w.portal.update(0, elapsed, player);
+  } else if (flyover) {
     const a = elapsed * 0.04;
     const r = 120;
     tmpV.set(w.spawn.x + Math.cos(a) * r, 0, w.spawn.z + Math.sin(a) * r);
@@ -1158,6 +1333,7 @@ function update(dt) {
       w.artifacts.update(dt, elapsed, player, onArtefact);
       loot.update(dt, elapsed, player, onLoot, skills.has('magnet') ? 22 : 0);
       tickBuffs();
+      if (SECRET) secretTick();
       raid.update(dt, player, slimes.boss);
       // Niveau 10+ : s'éloigner du gardien lui rend ses forces.
       const gb = slimes.boss;
@@ -1212,8 +1388,17 @@ function update(dt) {
     const target = boss ? { pos: boss.pos, label: boss.name || 'Gardien' } : null;
     hud.update({ player, env, relics: w.relics, portal: w.portal, score, camYaw: cam.yaw, underwater, locked: input.locked, isTouch: input.isTouch, target });
     ui.updateBar(skills);
-    const showBar = boss && boss.pos.distanceTo(player.pos) < 90;
-    bossbar.classList.toggle('hidden', !showBar);
+    const waveBar = SECRET && secret.active && !boss && secret.mobs.length > 0;
+    if (waveBar) {
+      const alive = secret.mobs.filter((m) => m.dying < 0);
+      const tot = secret.mobs.reduce((a, m) => a + m.maxHp, 0);
+      const cur = alive.reduce((a, m) => a + Math.max(m.hp, 0), 0);
+      bossbar.classList.remove('hidden');
+      bossbar.querySelector('.bb-name').textContent = `${WAVES[secret.wave].title} · ${WAVES[secret.wave].name} (${alive.length})`;
+      bossbar.querySelector('.bb-fill').style.width = `${(cur / tot) * 100}%`;
+    }
+    const showBar = !waveBar && boss && boss.pos.distanceTo(player.pos) < 90;
+    if (!waveBar) bossbar.classList.toggle('hidden', !showBar);
     if (showBar) {
       bossbar.querySelector('.bb-name').textContent = boss.name || 'Gardien';
       bossbar.querySelector('.bb-fill').style.width = `${Math.max(boss.hp / boss.maxHp, 0) * 100}%`;
@@ -1265,5 +1450,5 @@ function simulate(sec, keys = []) {
 window.__game = {
   get world() { return world; }, get slimes() { return slimes; }, get score() { return score; }, get chapter() { return chapter; }, set chapter(v) { chapter = v; },
   get state() { return state; }, get artefacts() { return artefacts; }, get divine() { return divine; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
-  story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES, raid, startHelperRaid, loot, buffs,
+  story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES, raid, startHelperRaid, loot, buffs, secret, cine,
 };

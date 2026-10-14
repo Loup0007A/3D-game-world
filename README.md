@@ -82,6 +82,10 @@ Nouveaux ennemis au fil des niveaux : feu follet (4), **Rôdeur** qui charge en 
 
 **La Chronique des Mondes Vivants** (`src/game/stories/saga.js`) relie les 100 niveaux : cent mondes rêvés dans l'Archive, que la Fêlure et l'Oublieur éteignent un à un. 10 Âges de 10 niveaux ; le 10e monde de chaque Âge est gardé par un Écho de l'Oublieur (Morne, la Sourdine, Sève-Noire, le Noyeur, l'Oiseau de Cendre, le Rouage Fou, le Double, Nuit-sans-Lune, Ignivore le Dernier Dragon, puis l'Oublieur au niveau 100). Dans chaque niveau, les 5 reliques racontent l'histoire du monde jusqu'à sa vérité (4e relique).
 
+### Niveau caché 101 : le Trône de l'Archive
+
+Visible seulement une fois les 100 niveaux terminés (carte dorée dans le hub, lien à la fin du niveau 100, route `/101/`). **Solo uniquement** : aucun raid. Cinq épreuves annoncées par des cinématiques (`src/game/cinematic.js`, Espace pour avancer, Échap pour passer) : trois Chimères, les Wyvernes d'Orage, le Béhémoth de Cristal, les Trois Dragons (feu, givre, néant), puis le Primordial, dragon couronné qui fait pleuvoir des météores et appelle des wyvernes. Monstres +60 % de PV, +40 % de dégâts, régénération divisée par deux ; toutes les compétences au départ ; mourir relance l'épreuve en cours. Le vaincre fait passer au **rang Divin** sur le S.I.D. (`src/game/secret.js`).
+
 ### Compétences par histoire
 
 | | Compétences en tout | Au départ | À retrouver |
@@ -97,7 +101,7 @@ Une compétence revient avec la première relique de chaque chapitre. Ensuite, u
 ```bash
 npm install
 npm run dev        # serveur local
-npm run build      # dist/ + dist/1 … dist/100 (GitHub Pages)
+npm run build      # dist/ + dist/1 … dist/100 + dist/101 (GitHub Pages)
 npm run build:single  # un seul fichier HTML jouable hors ligne, dans dist-single/
 ```
 
@@ -172,6 +176,8 @@ Three.js r169 · ciel atmosphérique (`Sky`) · ombres douces qui suivent le jou
 src/
   main.js              boucle, états, routes, sauvegarde, gardiens, événements
   game/stories/        100 graines, modèles de texte, générateur, difficulté
+  game/secret.js       niveau caché 101 (vagues, textes)
+  game/cinematic.js    cinématiques (plans de caméra, sous-titres)
   game/story.js        textes écrits à la main de l'histoire 1
   game/skills.js       16 compétences
   core/                noise, input, caméra 3e personne, audio synthétisé

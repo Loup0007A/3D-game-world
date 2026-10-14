@@ -35,6 +35,15 @@ export const TYPES = {
     shot: { kind: 'bolt', dmg: 10, cd: 2.8, range: 26, speed: 22, color: 0xa594ff } },
   // Mimique : déguisée en artefact, elle attend qu'on s'approche.
   mimic: { color: 0xd9a441, hp: 7, dmg: 24, scale: 1.15, speed: 6, score: 80, move: 'hop', mimic: true },
+  // ── Niveau caché 101 : créatures originales, très dures ──
+  chimera: { color: 0xc8913a, hp: 12, dmg: 30, scale: 1.6, speed: 7, score: 600, move: 'walk', knockMul: 0.15, model: 'chimera', pounce: true,
+    shot: { kind: 'bolt', dmg: 18, cd: 2.4, range: 30, speed: 26, count: 3, spread: 2, color: 0xff7a2a } },
+  wyvern: { color: 0x3a3f9a, hp: 11, dmg: 26, scale: 1.4, speed: 10, score: 700, move: 'fly', knockMul: 0.1, model: 'wyvern',
+    shot: { kind: 'bolt', dmg: 20, cd: 2.2, range: 46, speed: 36, color: 0xbfe6ff } },
+  behemoth: { color: 0x5b6470, hp: 28, dmg: 40, scale: 2.2, speed: 3.4, score: 1200, move: 'walk', knockMul: 0.02, stone: true, model: 'behemoth',
+    shot: { kind: 'rock', dmg: 30, cd: 3.2, range: 38, speed: 15, count: 2, spread: 3, color: 0x8ff6ff } },
+  primordial: { color: 0x2b1d0e, hp: 46, dmg: 34, scale: 4.2, speed: 9, score: 10000, move: 'fly', knockMul: 0.0, boss: true, dragon: true, primordial: true,
+    shot: { kind: 'bolt', dmg: 22, cd: 1.8, range: 70, speed: 30, count: 7, spread: 2.6, color: 0xffd34d } },
   // Dragon : gardien des joueurs dont la Puissance atteint 90. Vole, plonge
   // sur sa cible et crache des gerbes de feu.
   dragon: { color: 0x8a1424, hp: 34, dmg: 26, scale: 2.1, speed: 8, score: 1500, move: 'fly', knockMul: 0.04, boss: true, dragon: true,
@@ -42,10 +51,10 @@ export const TYPES = {
 };
 
 // Modèle du dragon (formes simples, ailes animées).
-function buildDragon(mat) {
+function buildDragon(mat, o = {}) {
   const g = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: 0x2a0a10, roughness: 0.6, flatShading: true });
-  const wingMat = new THREE.MeshStandardMaterial({ color: 0x5a0d18, emissive: 0x300008, emissiveIntensity: 0.4, roughness: 0.7, side: THREE.DoubleSide, flatShading: true });
+  const dark = new THREE.MeshStandardMaterial({ color: o.horn ?? 0x2a0a10, roughness: 0.6, flatShading: true, emissive: o.hornGlow ?? 0x000000, emissiveIntensity: 0.8 });
+  const wingMat = new THREE.MeshStandardMaterial({ color: o.wing ?? 0x5a0d18, emissive: o.wingGlow ?? 0x300008, emissiveIntensity: 0.4, roughness: 0.7, side: THREE.DoubleSide, flatShading: true });
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.75, 14, 10), mat);
   body.scale.set(0.9, 0.8, 1.7);
   body.position.y = 1.2;
@@ -62,7 +71,7 @@ function buildDragon(mat) {
     horn.position.set(sx * 0.2, 2.6, 1.85);
     horn.rotation.x = -0.7;
     g.add(horn);
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffb020 }));
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), new THREE.MeshBasicMaterial({ color: o.eye ?? 0xffb020 }));
     eye.position.set(sx * 0.2, 2.38, 2.3);
     g.add(eye);
   }
@@ -77,14 +86,120 @@ function buildDragon(mat) {
     const pivot = new THREE.Group();
     pivot.position.set(sx * 0.5, 1.55, 0.3);
     const w = new THREE.Mesh(wingGeo, wingMat);
-    w.scale.x = sx;
+    w.scale.set(sx * (o.wingScale ?? 1), 1, o.wingScale ?? 1);
     w.castShadow = true;
     pivot.add(w);
     g.add(pivot);
     wings.push(pivot);
   }
-  return { group: g, body, wings };
+  // Primordial : couronne de cornes et épines dorsales lumineuses.
+  if (o.crown) {
+    for (let k = 0; k < 5; k++) {
+      const h = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.8, 5), dark);
+      h.position.set((k - 2) * 0.13, 2.65, 1.75 - Math.abs(k - 2) * 0.05);
+      h.rotation.x = -0.4;
+      h.rotation.z = (k - 2) * 0.25;
+      g.add(h);
+    }
+    for (let k = 0; k < 6; k++) {
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.5, 4), dark);
+      sp.position.set(0, 1.85 - k * 0.04, 0.9 - k * 0.45);
+      g.add(sp);
+    }
+  }
+  return { group: g, body, wings, wingMat };
 }
+
+// Chimère : corps de lion, tête de chèvre sur le dos, queue de serpent.
+function buildChimera(mat) {
+  const g = new THREE.Group();
+  const mane = new THREE.MeshStandardMaterial({ color: 0x6b3a12, roughness: 0.9, flatShading: true });
+  const goatMat = new THREE.MeshStandardMaterial({ color: 0xd8d0c0, roughness: 0.7, flatShading: true });
+  const snakeMat = new THREE.MeshStandardMaterial({ color: 0x3f7a3a, roughness: 0.4, flatShading: true });
+  const eyeM = new THREE.MeshBasicMaterial({ color: 0xff6020 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 1.4, 6, 12).rotateX(Math.PI / 2), mat);
+  body.position.y = 1.1;
+  body.castShadow = true;
+  g.add(body);
+  for (const [x, z] of [[-0.35, 0.6], [0.35, 0.6], [-0.35, -0.6], [0.35, -0.6]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.9, 7), mat);
+    leg.position.set(x, 0.45, z);
+    g.add(leg);
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), mat);
+  head.position.set(0, 1.55, 1.25);
+  g.add(head);
+  const maneM = new THREE.Mesh(new THREE.SphereGeometry(0.62, 10, 8), mane);
+  maneM.scale.set(1, 1, 0.7);
+  maneM.position.set(0, 1.5, 1.05);
+  g.add(maneM);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.18, 0.35), mat);
+  jaw.position.set(0, 1.38, 1.55);
+  g.add(jaw);
+  // Tête de chèvre sur le dos
+  const goat = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6, 6).rotateX(Math.PI / 2.4), goatMat);
+  goat.position.set(0, 1.95, 0.1);
+  g.add(goat);
+  for (const sx of [-1, 1]) {
+    const horn = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.04, 5, 10, Math.PI * 1.2), goatMat);
+    horn.position.set(sx * 0.14, 2.1, 0.05);
+    horn.rotation.set(0, sx * 1.2, 0);
+    g.add(horn);
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), eyeM);
+    e.position.set(sx * 0.16, 1.65, 1.6);
+    g.add(e);
+  }
+  // Queue-serpent
+  const tail = [];
+  for (let k = 0; k < 6; k++) {
+    const seg = new THREE.Mesh(new THREE.SphereGeometry(0.16 - k * 0.012, 8, 6), snakeMat);
+    seg.position.set(0, 1.2 + k * 0.18, -1.0 - k * 0.22);
+    g.add(seg);
+    tail.push(seg);
+  }
+  const snakeHead = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.35, 6).rotateX(-Math.PI / 2), snakeMat);
+  snakeHead.position.set(0, 2.35, -2.25);
+  g.add(snakeHead);
+  return { group: g, body, tail };
+}
+
+// Béhémoth de Cristal : bloc de roche hérissé de cristaux.
+function buildBehemoth(mat) {
+  const g = new THREE.Group();
+  const crystal = new THREE.MeshStandardMaterial({ color: 0x8ff6ff, emissive: 0x30c8ff, emissiveIntensity: 1.2, roughness: 0.1, metalness: 0.3, flatShading: true });
+  const body = new THREE.Mesh(new THREE.DodecahedronGeometry(1.1, 0), mat);
+  body.scale.set(1.2, 0.85, 1.5);
+  body.position.y = 1.3;
+  body.castShadow = true;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55, 0), mat);
+  head.position.set(0, 1.4, 1.7);
+  g.add(head);
+  for (const [x, z] of [[-0.8, 0.8], [0.8, 0.8], [-0.8, -0.8], [0.8, -0.8]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.4, 1.0, 6), mat);
+    leg.position.set(x, 0.5, z);
+    g.add(leg);
+  }
+  for (let k = 0; k < 9; k++) {
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.18 + (k % 3) * 0.06, 0.9 + (k % 4) * 0.3, 5), crystal);
+    c.position.set(Math.sin(k * 2.4) * 0.7, 2.1 + (k % 2) * 0.1, -0.9 + (k / 8) * 1.8);
+    c.rotation.set(Math.sin(k) * 0.4, 0, Math.cos(k * 1.7) * 0.4);
+    g.add(c);
+  }
+  for (const sx of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), new THREE.MeshBasicMaterial({ color: 0x8ff6ff }));
+    e.position.set(sx * 0.22, 1.55, 2.2);
+    g.add(e);
+  }
+  return { group: g, body };
+}
+
+// Variantes de dragons (niveau 101).
+export const DRAGON_TINTS = {
+  fire: { body: 0x8a1424, wing: 0x5a0d18, wingGlow: 0x401000, shot: 0xff6a1a, eye: 0xffb020 },
+  frost: { body: 0x3a7fb8, wing: 0x9fd8ff, wingGlow: 0x103050, shot: 0xb8f0ff, eye: 0xe0ffff },
+  void: { body: 0x2a1048, wing: 0x5a2a90, wingGlow: 0x300060, shot: 0xb070ff, eye: 0xff40ff },
+};
 
 // Renfort général des Échos (équilibré pour rester jouable dès la 1re histoire).
 const BUFF = { hp: 1.3, dmg: 1.2, speed: 1.2, aggro: 1.25, density: 1.1 };
@@ -172,17 +287,24 @@ class Slime {
       emissiveIntensity: T.glow ?? 0.18,
       flatShading: !!T.stone,
     });
-    if (T.dragon) {
+    if (T.dragon || T.model) {
       this.mat.transparent = false;
       this.mat.opacity = 1;
       this.mat.roughness = 0.45;
       this.mat.flatShading = true;
-      const d = buildDragon(this.mat);
+      let d;
+      if (T.model === 'chimera') d = buildChimera(this.mat);
+      else if (T.model === 'behemoth') d = buildBehemoth(this.mat);
+      else if (T.model === 'wyvern') { this.mat.emissiveIntensity = 0.3; d = buildDragon(this.mat, { wing: 0x6a74d8, wingGlow: 0x1a2060, eye: 0xbfe6ff, wingScale: 1.3 }); }
+      else if (T.primordial) { this.mat.metalness = 0.6; d = buildDragon(this.mat, { wing: 0x3a2a10, wingGlow: 0x8a6010, horn: 0xffd34d, hornGlow: 0xb08000, eye: 0xffffff, wingScale: 1.25, crown: true }); }
+      else d = buildDragon(this.mat);
       this.body = d.body;
       this.wings = d.wings;
+      this.wingMat = d.wingMat;
+      this.tail = d.tail;
       this.object = d.group;
       this.object.scale.setScalar(T.scale);
-      this.flyY = 9;
+      this.flyY = T.primordial ? 14 : 9;
       this.diveCd = 6;
       return;
     }
@@ -275,6 +397,7 @@ export class SlimeManager {
     this.boss = null;
     this.playerDmgMul = 1;
     this.godMode = false;
+    this.meteors = [];
     this.setDifficulty(diff);
   }
 
@@ -298,7 +421,16 @@ export class SlimeManager {
   spawn(type, pos, opts = {}) {
     const mods = TYPES[type].boss ? { hp: this.diff.hp * (this.diff.bossHp ?? 1), dmg: this.diff.dmg, speed: Math.min(this.diff.speed, 1.3 * BUFF.speed) } : this.diff;
     const s = new Slime(type, pos, mods);
-    if (type === 'wisp' || type === 'swarm' || type === 'dragon') s.pos.y += s.flyY;
+    if (opts.notBoss) s.T = { ...s.T, boss: false };
+    if (opts.tint && DRAGON_TINTS[opts.tint]) {
+      const t = DRAGON_TINTS[opts.tint];
+      s.mat.color.set(t.body); s.mat.emissive.set(t.body);
+      if (s.wingMat) { s.wingMat.color.set(t.wing); s.wingMat.emissive.set(t.wingGlow); }
+      s.T = { ...s.T, color: t.body, shot: { ...s.T.shot, color: t.shot } };
+    }
+    if (opts.hpMul) { s.hp = s.maxHp = Math.round(s.maxHp * opts.hpMul); }
+    if (type === 'wisp' || type === 'swarm' || s.T.move === 'fly') s.pos.y += s.flyY;
+    s.object.position.copy(s.pos);
     // Élite : plus grosse, plus dure, couronnée d'or… et toujours un butin.
     if (opts.elite || (!s.T.boss && type !== 'swarm' && type !== 'mimic' && Math.random() < this.diff.eliteChance)) this._makeElite(s);
     this.list.push(s);
@@ -593,20 +725,40 @@ export class SlimeManager {
         const vis = clamp(1 - (dist - 6) / 10, 0.12, 1);
         s.mat.opacity = lerp(s.mat.opacity, (night > 0.5 ? vis : 0.85) * 0.9, 1 - Math.exp(-dt * 4));
       } else if (mv === 'walk') {
-        // Golem : marche lourde, frappe le sol (cercle d'avertissement).
-        if (s.slamT >= 0) {
+        // Golem, Béhémoth, Chimère : marche lourde, frappe le sol (cercle d'avertissement).
+        const slamR = 3.6 * Math.max(1, s.T.scale / 1.55);
+        // Chimère : bond sur sa proie, onde à l'atterrissage.
+        if (s.T.pounce) {
+          s.pounceCd = (s.pounceCd ?? 2.5) - sdt;
+          if (s.pouncing && s.landed) {
+            s.pouncing = false;
+            this.events.push({ type: 'slam', pos: s.pos.clone(), radius: 4 });
+            this._areaDamage(player, s.pos, 4, s.T.dmg);
+          } else if (!s.pouncing && aggro && !rooted && s.onGround && s.pounceCd <= 0 && dist > 5 && dist < 20) {
+            const t = 0.9;
+            s.vel.set(toP.x / t, 0.5 * 24 * t, toP.z / t);
+            s.onGround = false;
+            s.pouncing = true;
+            s.pounceCd = 3.5 + Math.random() * 1.5;
+            this._ring(player.pos, 4, 0xff7a2a, t);
+          }
+          if (s.tail) s.tail.forEach((seg, k) => { seg.position.x = Math.sin(elapsed * 3 + k * 0.6) * 0.12 * k; });
+        }
+        if (s.pouncing) {
+          // en l'air : on laisse le saut se faire
+        } else if (s.slamT >= 0) {
           s.slamT += sdt;
           if (s.slamT > 0.75) {
-            this.events.push({ type: 'slam', pos: s.pos.clone(), radius: 3.6 });
-            this._areaDamage(player, s.pos, 3.6, s.T.dmg);
+            this.events.push({ type: 'slam', pos: s.pos.clone(), radius: slamR, big: s.T.scale > 2 });
+            this._areaDamage(player, s.pos, slamR, s.T.dmg);
             s.slamT = -1;
             s.attackCd = 2.2;
             s.squash = 0.5;
           }
         } else {
-          if (aggro && dist < 3.2 && s.attackCd <= 0 && !rooted) {
+          if (aggro && dist < slamR * 0.9 && s.attackCd <= 0 && !rooted) {
             s.slamT = 0;
-            this._ring(s.pos, 3.6, 0xff6040, 0.75);
+            this._ring(s.pos, slamR, 0xff6040, 0.75);
           } else if (!rooted) {
             const sp = aggro ? s.T.speed : s.T.speed * 0.4;
             const dir = aggro ? toP.clone().normalize() : new THREE.Vector3(Math.cos(s.wander), 0, Math.sin(s.wander));
@@ -617,8 +769,10 @@ export class SlimeManager {
         }
         if (rooted) { s.vel.x = 0; s.vel.z = 0; }
         s.vel.y -= 24 * sdt;
+        s.landed = false;
         s.pos.addScaledVector(s.vel, sdt);
         this._ground(s);
+        if (s.pouncing && s.onGround) { s.vel.x *= 0.2; s.vel.z *= 0.2; }
         if (aggro) s.object.rotation.y = lerpAngle(s.object.rotation.y, Math.atan2(toP.x, toP.z), sdt * 5);
       } else if (mv === 'charge') {
         // Rôdeur : élan (0,6 s), charge rectiligne, puis souffle quelques instants.
@@ -751,6 +905,17 @@ export class SlimeManager {
       }
     }
 
+    // Météores du Primordial
+    for (let i = this.meteors.length - 1; i >= 0; i--) {
+      const m = this.meteors[i];
+      m.t -= sdt;
+      if (m.t <= 0) {
+        this.events.push({ type: 'slam', pos: m.pos.clone(), radius: 3, boom: true });
+        this._areaDamage(player, m.pos, 3, m.dmg);
+        this.meteors.splice(i, 1);
+      }
+    }
+
     // Cercles d'avertissement
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const r = this.rings[i];
@@ -825,6 +990,21 @@ export class SlimeManager {
   _bossAI(s, player, toP, dist, sdt) {
     if (s.rootT > 0) return;
     const enraged = s.hp < s.maxHp * 0.5;
+    // Primordial : pluie de météores annoncée par des cercles, de plus en plus dense.
+    if (s.T.primordial) {
+      s.meteorCd = (s.meteorCd ?? 6) - sdt;
+      if (s.meteorCd <= 0 && dist < 80) {
+        const n = s.hp < s.maxHp * 0.33 ? 9 : enraged ? 7 : 5;
+        for (let k = 0; k < n; k++) {
+          const a = Math.random() * Math.PI * 2, r = k === 0 ? 0 : 3 + Math.random() * 9;
+          const p = new THREE.Vector3(player.pos.x + Math.cos(a) * r, 0, player.pos.z + Math.sin(a) * r);
+          p.y = Math.max(this.terrain.heightAt(p.x, p.z), SEA_LEVEL);
+          this._ring(p, 3, 0xffd34d, 1.3);
+          this.meteors.push({ pos: p, t: 1.3, dmg: Math.round(s.T.dmg * 0.9) });
+        }
+        s.meteorCd = enraged ? 6 : 8;
+      }
+    }
     s.leapCd -= sdt; s.summonCd -= sdt; s.volleyCd -= sdt;
     const netControlled = s.net && performance.now() - s.net.at < 1500;
     if (!s.T.dragon && !netControlled && s.leapCd <= 0 && s.onGround && dist < 40) {
@@ -850,8 +1030,10 @@ export class SlimeManager {
         const x = s.pos.x + Math.cos(a) * 5, z = s.pos.z + Math.sin(a) * 5;
         const h = this.terrain.heightAt(x, z);
         if (h < SEA_LEVEL + 0.2) continue;
-        const m = this.spawn(this._typeFor(x, z, 1), new THREE.Vector3(x, h, z));
+        if (s.T.primordial && this.list.filter((o) => o.type === 'wyvern' && o.dying < 0).length >= 2) break;
+        const m = this.spawn(s.T.primordial ? 'wyvern' : this._typeFor(x, z, 1), new THREE.Vector3(x, h, z));
         m.guard = s.pos.clone();
+        if (s.T.primordial) break;
       }
       this.events.push({ type: 'summon', pos: s.pos.clone() });
       s.summonCd = enraged ? 10 : 14;
@@ -956,6 +1138,7 @@ export class SlimeManager {
     this.rootMeshes = [];
     this.boss = null;
     this.slowT = 0;
+    this.meteors = [];
   }
 }
 

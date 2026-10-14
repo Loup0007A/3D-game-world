@@ -284,3 +284,17 @@ a.btn { text-decoration: none; text-align: center; display: inline-block; }
 /* Effets du butin en cours (haut gauche) */
 .buffs{position:fixed;top:calc(64px + env(safe-area-inset-top));left:14px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
 .buffs span{background:rgba(10,14,28,.72);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:3px 10px;font:600 13px/1.4 system-ui,sans-serif;color:#f3eede;backdrop-filter:blur(4px)}
+
+/* Cinématiques (niveau 101) */
+.cine{position:fixed;inset:0;z-index:40;pointer-events:auto;cursor:pointer}
+.cine-bar{position:absolute;left:0;right:0;height:13vh;background:#000;transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+.cine-bar.top{top:0;transform:translateY(-100%)}
+.cine-bar.bottom{bottom:0;transform:translateY(100%)}
+.cine.on .cine-bar{transform:none}
+.cine-title{position:absolute;top:24vh;left:0;right:0;text-align:center;font:700 clamp(28px,6vw,64px)/1.1 'Cinzel',Georgia,serif;letter-spacing:.12em;color:#ffe9a8;text-shadow:0 0 24px rgba(255,190,60,.7),0 2px 0 #000;opacity:0;transform:scale(1.08);transition:opacity 1.2s,transform 2.4s}
+.cine-title.show{opacity:1;transform:none}
+.cine-text{position:absolute;bottom:calc(13vh + 18px);left:8%;right:8%;text-align:center;font:500 clamp(15px,2.2vw,21px)/1.5 Georgia,serif;color:#f4eedc;text-shadow:0 1px 6px #000;opacity:0;transition:opacity .9s}
+.cine-text.in{opacity:1}
+.cine-skip{position:absolute;right:18px;bottom:calc(13vh + 18px);background:rgba(0,0,0,.45);color:#f4eedc;border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:6px 12px;font:600 13px system-ui;cursor:pointer}
+.hub-card.secret{background:radial-gradient(circle at 50% 30%,rgba(255,211,77,.35),rgba(40,20,60,.85));border:1px solid #ffd34d;box-shadow:0 0 24px rgba(255,211,77,.45);grid-column:1/-1}
+.hub-card.secret b{color:#ffe9a8;letter-spacing:.06em}
