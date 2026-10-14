@@ -174,7 +174,7 @@ async function buildWorld(n, c, withLoading = true) {
   placeAtArch();
   hud.setWorld(terrain.mapCanvas, relics, c);
   hud.markRelics(relics);
-  $('world-label').textContent = `Chapitre ${c}/${CHAPTER_COUNT}`;
+  $('world-label').textContent = `Niveau ${n}`;
   applyQuality();
   renderer.compile(scene, camera);
   await step(1, story ? story.chapters[c - 1].title : '');
@@ -213,7 +213,8 @@ function save() {
 }
 function readSave() {
   const s = store.get(SAVE_KEY, null);
-  return s && s.v === 3 ? s : null;
+  // Les sauvegardes de l'ancienne version (10 îles par histoire) sont ignorées.
+  return s && s.v === 3 && s.chapter <= CHAPTER_COUNT ? s : null;
 }
 // Niveau = histoire : avec N de Puissance sur le S.I.D., les histoires 1 à N
 // sont validées (en vert) et la N+1 est la suivante à jouer. Dans le S.I.D.,
@@ -344,7 +345,7 @@ function renderTitle() {
   $('t-title').textContent = story.title;
   $('t-premise').textContent = story.premise;
   const est = estimateMinutes(storyN);
-  $('t-meta').innerHTML = `<span class="stars">${starStr(story.stars)}</span> · ≈ ${fmtTime(est)} · ${CHAPTER_COUNT} chapitres · ${story.plan.start.length} compétence${story.plan.start.length > 1 ? 's' : ''} au départ, ${story.plan.unlocks.length} à retrouver`;
+  $('t-meta').innerHTML = `<span class="stars">${starStr(story.stars)}</span> · ≈ ${fmtTime(est)} · une île, un gardien · ${story.plan.start.length} compétence${story.plan.start.length > 1 ? 's' : ''} au départ, ${story.plan.unlocks.length} à retrouver`;
   const s = readSave();
   const cont = $('continue-btn');
   const open = isUnlocked(storyN);
@@ -359,7 +360,7 @@ function renderTitle() {
   cont.classList.toggle('hidden', !s || !open);
   $('play-btn').classList.toggle('secondary', !!s);
   $('play-btn').textContent = s ? 'Recommencer' : doneList().includes(storyN) ? 'Rejouer' : 'Commencer';
-  if (s) cont.textContent = `Continuer · chapitre ${s.chapter}`;
+  if (s) cont.textContent = 'Continuer';
   $('t-all').href = hubLink();
   const end = store.get(`mv-end${storyN}`, null);
   $('best').textContent = end ? `Terminée · fin choisie : « ${end} »` : '';
@@ -424,7 +425,7 @@ function setState(s) {
   input.enabled = s === 'playing';
   if (s !== 'playing') input.exitLock();
   else { input.lookDX = input.lookDY = 0; input.wheel = 0; }
-  if (s === 'paused') $('pause-seed').textContent = `${story.title} · chapitre ${chapter} · ${fmtTime(playTime / 60)} de jeu`;
+  if (s === 'paused') $('pause-seed').textContent = `Niveau ${storyN} · ${story.title} · ${fmtTime(playTime / 60)} de jeu`;
   if (s === 'title') renderTitle();
 }
 
@@ -505,7 +506,7 @@ function startChapter(resumed = false) {
   player.diffDmg = diff.dmg;
   play();
   const ch = story.chapters[chapter - 1];
-  ui.chapterCard(chapter, ch.title);
+  ui.chapterCard(storyN, ch.title);
   if (!resumed) setTimeout(() => ch.arrival.forEach((l) => ui.say(l)), 2600);
   const left = world.relics.total - world.relics.collected;
   if (left > 0) hud.toast(`Trouve les <b>${left} reliques</b> de l'île`, 4200);
@@ -684,7 +685,7 @@ raid.on('joined', (d) => {
     if (raid.dragon && slimes.boss && !slimes.boss.T.dragon) { /* le dragon dépend de la Puissance de l'hôte */ }
   } else {
     $('raid-join-title').textContent = `Raid de ${d.hostName || 'un membre'}`;
-    $('raid-join-text').textContent = `${raid.dragon ? 'Un dragon' : 'Un gardien'} garde l'île ${helperRaid.chapter} de « ${story.title} ». Abattez-le ensemble !`;
+    $('raid-join-text').textContent = `${raid.dragon ? 'Un dragon' : 'Un gardien'} garde le niveau ${storyN} « ${story.title} ». Abattez-le ensemble !`;
   }
   bossDamageHook();
 });
@@ -731,7 +732,7 @@ function updateRaidButton() {
 
 // Allié venu aider : île du boss, compétences de l'histoire jusqu'à ce chapitre.
 async function startHelperRaid() {
-  chapter = helperRaid.chapter;
+  chapter = Math.min(helperRaid.chapter, CHAPTER_COUNT);
   if (builtFor !== `${storyN}:${chapter}`) await buildWorld(storyN, chapter);
   artefacts = 0; divine = {};
   applyStartKit();
@@ -1154,7 +1155,7 @@ function simulate(sec, keys = []) {
   }
   document.title = `${story.title} · Mondes Vivants`;
   if (helperRaid) {
-    await buildWorld(storyN, helperRaid.chapter);
+    await buildWorld(storyN, Math.min(helperRaid.chapter, CHAPTER_COUNT));
     camera.position.set(world.spawn.x + 120, 60, world.spawn.z);
     setState('raid');
     $('raid-join').classList.remove('hidden');

@@ -79,7 +79,7 @@ export class StoryUI {
   }
 
   chapterCard(num, title) {
-    this.chapter.querySelector('.ch-num').textContent = `Chapitre ${num}`;
+    this.chapter.querySelector('.ch-num').textContent = `Niveau ${num}`;
     this.chapter.querySelector('.ch-title').textContent = title;
     this.chapter.classList.remove('show');
     void this.chapter.offsetWidth;

@@ -6,7 +6,9 @@ import { mulberry32 } from '../../core/noise.js';
 import { INTRO as ILO_INTRO, CHAPTERS as ILO_CHAPTERS } from '../story.js';
 
 export const STORY_COUNT = SEEDS.length;
-export const CHAPTER_COUNT = 10;
+// Une histoire = un niveau = UNE île : reliques, gardien, portail, épilogue.
+// (Le S.I.D. compte +1 Puissance par niveau terminé.)
+export const CHAPTER_COUNT = 1;
 // Reliques par chapitre (c = 0..9) : 5,5,6,6,7,7,8,8,9,9 → 70 par histoire.
 export const relicsFor = (c) => 5 + Math.floor(c / 2);
 
@@ -23,8 +25,10 @@ function shuffle(arr, rand) {
 
 // Plan des compétences : de plus en plus nombreuses au fil des histoires.
 export function skillPlan(n) {
-  const total = Math.min(SKILL_ORDER.length, 5 + Math.floor((n - 1) / 9)); // 5 → 16
-  const inStory = Math.min(total, 5 + Math.floor((n - 1) / 30)); // 5 → 8 gagnées pendant l'histoire
+  // Une compétence de plus tous les 6 niveaux (1 → 16), dont une à
+  // retrouver sur l'île ; les autres sont acquises d'avance.
+  const total = Math.min(SKILL_ORDER.length, 1 + Math.floor((n - 1) / 6));
+  const inStory = Math.min(total, CHAPTER_COUNT);
   const startCount = total - inStory;
   const start = SKILL_ORDER.slice(0, startCount);
   const unlocks = SKILL_ORDER.slice(startCount, total); // une par chapitre, dès la 1re relique
@@ -35,7 +39,7 @@ export function skillPlan(n) {
 // Difficulté : monte avec l'histoire (n) et avec le chapitre (c = 0..9).
 export function difficulty(n, c) {
   const d = (n - 1) / (STORY_COUNT - 1);
-  const local = c / (CHAPTER_COUNT - 1);
+  const local = CHAPTER_COUNT > 1 ? c / (CHAPTER_COUNT - 1) : 0;
   return {
     hp: 1 + 2.2 * d + 0.4 * local * (1 + d),
     dmg: 1 + 1.4 * d + 0.25 * local,
@@ -124,7 +128,7 @@ export function getStory(n) {
   // Histoire 1 : les textes écrits à la main du premier jeu.
   if (n === 1) {
     story.intro = ILO_INTRO;
-    for (let c = 0; c < ILO_CHAPTERS.length; c++) {
+    for (let c = 0; c < Math.min(ILO_CHAPTERS.length, story.chapters.length); c++) {
       const src = ILO_CHAPTERS[c];
       const ch = story.chapters[c];
       if (c < 4) { ch.title = src.title; ch.arrival = src.arrival; }

@@ -1,6 +1,6 @@
 # Mondes Vivants
 
-Jeu d'aventure 3D dans le navigateur. **100 histoires**, chacune sur 10 îles nées du **bruit fractal**, de plus en plus dures, avec de plus en plus de compétences.
+Jeu d'aventure 3D dans le navigateur. **100 niveaux** (une histoire par niveau), chacun sur une île née du **bruit fractal**, de plus en plus dures, avec de plus en plus de compétences.
 
 **▶ Liste des histoires : https://loup0007a.github.io/3D-game-world/**
 **▶ Une histoire : https://loup0007a.github.io/3D-game-world/1/ … /100/**
@@ -45,17 +45,17 @@ Comme dans le dépôt **Potions**, le jeu envoie le résultat à `https://sid-qu
 Champs : `email` (demandé au joueur à l'arrivée sur une histoire, gardé dans le navigateur, modifiable sur l'écran titre ; peut aussi être passé dans l'URL : `/12/?email=…`), `epreuve=mondes-vivants`, `epreuve_num=4`, `niveau` = numéro de l'histoire, `reussi`, `session`, `debut`, `fin`, `duree_s`, `details` (chapitre, morts, temps de jeu, points, fin choisie), `source`, `origine`, `parent`, `integre`, `ts`, `sig` = fnv(`sid-quest-v2|` + paramètres triés).
 Les paramètres de l'URL de l'iframe (ex. `/12/?user=abc`) sont recopiés dans la requête et gardés dans les liens « Histoire suivante » et « Toutes les histoires ». Une même tentative n'est envoyée qu'une fois.
 
-Quitter la page ne compte pas comme un échec : une histoire dure 3 h, la partie est sauvegardée et reprend avec **Continuer**.
+Quitter la page ne compte pas comme un échec : la partie est sauvegardée et reprend avec **Continuer**.
 
 ## Les 100 histoires
 
-Chaque histoire a son héros, son guide, son fléau, ses ennemis, son monde, une révélation au chapitre 7 et deux fins au choix. Les débuts, révélations et fins sont écrits à la main (`src/game/stories/seeds.js`). Les textes des chapitres sont assemblés à partir de modèles (`templates.js`), donc des phrases reviennent d'une histoire à l'autre. L'histoire 1 reprend les textes écrits pour le premier jeu.
+Chaque histoire a son héros, son guide, son fléau, ses ennemis, son monde et deux fins au choix. Les débuts, révélations et fins sont écrits à la main (`src/game/stories/seeds.js`). Les textes des chapitres sont assemblés à partir de modèles (`templates.js`), donc des phrases reviennent d'une histoire à l'autre. L'histoire 1 reprend les textes écrits pour le premier jeu.
 
 Les histoires se font **dans l'ordre** : l'histoire N s'ouvre quand toutes les précédentes sont terminées (progression gardée dans le navigateur).
 
 Structure d'une histoire :
-- intro, puis **10 chapitres** (une île chacun) ;
-- **5 à 9 reliques** par île (70 en tout), chacune avec un fragment d'histoire ;
+- intro, puis **une île** : reliques, gardien, portail, épilogue (`CHAPTER_COUNT` dans `src/game/stories/index.js`) ;
+- **5 reliques** par île, chacune avec un fragment d'histoire ;
 - **35 artefacts cachés** par île, sans faisceau ni repère sur la carte (ils ne scintillent que de près) : chacun donne **+2 de vie max et +2 % d'attaque** jusqu'à la fin de l'histoire, dans la limite de 50 artefacts (+100 vie, attaque ×2) — réglage `ARTEFACT` dans `src/main.js` ;
 - parmi eux, des **artefacts légendaires**, plus brillants : **Dieu vivant** (1 % de chance par artefact) — chaque coup terrasse l'ennemi, boss compris — et **Bouclier divin** (3 %) — 2 attaques ennemies sur 3 ratent (les chutes ne sont pas esquivées). Leur pouvoir dure jusqu'au passage du portail (fin de l'île) ;
 - **raid** : mort face au gardien (jeu ouvert depuis le S.I.D.), on peut demander de l'aide aux autres membres, qui rejoignent l'île et combattent le même boss en temps réel (`src/game/raid.js`, relais par la page du S.I.D.) ;
@@ -65,7 +65,7 @@ Structure d'une histoire :
 - quand toutes les reliques sont prises, un **gardien** (boss) apparaît au portail : il bondit (cercle rouge), invoque des renforts, puis crache des salves à mi-vie ;
 - au chapitre 10, le gardien final, puis le choix de fin et l'écran « Histoire suivante ».
 
-Durée estimée : **2 h 55 à 3 h 15** selon l'histoire (calcul à partir du nombre de reliques et des combats, pas mesuré en jouant).
+Durée estimée : **14 à 16 minutes** par niveau (calcul à partir du nombre de reliques et des combats, pas mesuré en jouant).
 
 ### Difficulté
 
@@ -76,7 +76,7 @@ Durée estimée : **2 h 55 à 3 h 15** selon l'histoire (calcul à partir du nom
 | Nombre d'ennemis | ×1 | ×1,6 | ×2,2 → ×2,55 |
 | Régénération | 2,5/s | 1,75/s | 1/s |
 
-Nouveaux ennemis : feu follet (dès l'histoire 6), cracheur (16), golem (30), ombre (48). Ils arrivent quelques histoires plus tôt dans les derniers chapitres.
+Nouveaux ennemis : feu follet (dès l'histoire 6), cracheur (16), golem (30), ombre (48).
 
 ### Compétences par histoire
 
