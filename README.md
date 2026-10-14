@@ -84,7 +84,9 @@ Nouveaux ennemis au fil des niveaux : feu follet (4), **Rôdeur** qui charge en 
 
 ### Niveau caché 101 : le Trône de l'Archive
 
-Visible seulement une fois les 100 niveaux terminés (carte dorée dans le hub, lien à la fin du niveau 100, route `/101/`). **Solo uniquement** : aucun raid. Cinq épreuves annoncées par des cinématiques (`src/game/cinematic.js`, Espace pour avancer, Échap pour passer) : trois Chimères, les Wyvernes d'Orage, le Béhémoth de Cristal, les Trois Dragons (feu, givre, néant), puis le Primordial, dragon couronné qui fait pleuvoir des météores et appelle des wyvernes. Monstres +60 % de PV, +40 % de dégâts, régénération divisée par deux ; toutes les compétences au départ ; mourir relance l'épreuve en cours. Le vaincre fait passer au **rang Divin** sur le S.I.D. (`src/game/secret.js`).
+Visible seulement une fois les 100 niveaux terminés (carte dorée dans le hub, lien à la fin du niveau 100, route `/101/`). **Solo uniquement** : aucun raid. Cinq épreuves annoncées par des cinématiques (`src/game/cinematic.js`, Espace pour avancer, Échap pour passer) : trois Chimères (manticores), les Wyvernes d'Orage, le Béhémoth de Cristal (colosse de rochers hérissé de cristaux), les Trois Dragons (feu et givre en vol, le dragon du néant posé au sol, qui se téléporte), puis le Primordial : dragon d'obsidienne fissurée d'or, modélisé dans le code, qui fait pleuvoir des météores, appelle des wyvernes et vire au rouge à mi-vie.
+
+Les créatures des quatre premières épreuves sont des **modèles 3D animés** (`public/models/`, chargés par `src/entities/models.js` seulement sur cette page ; si un fichier ne charge pas, la créature dessinée en code prend le relais). Monstres +60 % de PV, +40 % de dégâts, régénération divisée par deux ; toutes les compétences au départ ; mourir relance l'épreuve en cours. Le vaincre fait passer au **rang Divin** sur le S.I.D. (`src/game/secret.js`).
 
 ### Compétences par histoire
 
@@ -178,6 +180,7 @@ src/
   game/stories/        100 graines, modèles de texte, générateur, difficulté
   game/secret.js       niveau caché 101 (vagues, textes)
   game/cinematic.js    cinématiques (plans de caméra, sous-titres)
+  entities/models.js   modèles 3D animés du niveau 101 (public/models)
   game/story.js        textes écrits à la main de l'histoire 1
   game/skills.js       16 compétences
   core/                noise, input, caméra 3e personne, audio synthétisé
@@ -191,8 +194,18 @@ src/
 
 Aucun asset externe : modèles en géométrie procédurale, sons en WebAudio.
 
+## Crédits des modèles 3D (niveau 101)
+
+Modèles Sketchfab, optimisés pour le web (détails : [`public/models/CREDITS.md`](public/models/CREDITS.md)) :
+
+- « Animated Dragon Three Motion Loops » par LasquetiSpice — CC BY 4.0 (wyvernes, dragon de givre)
+- « Demon Dragon Full Texture » par endlessvoidmc — CC BY 4.0 (dragon de feu)
+- « Black Dragon with Idle Animation » par 3DHaupt — CC BY-NC 4.0, usage non commercial (dragon du néant)
+- « Manticore » par bucketo — CC BY 4.0 (chimères)
+- « Golem Rigged » par FourthGreen — CC BY 4.0 (béhémoth)
+
 ## Licence
 
-MIT
+MIT pour le code. Les modèles de `public/models/` gardent la licence de leurs auteurs (voir les crédits ci-dessus).
 
 **Puissance et histoires.** Chaque histoire terminée depuis le S.I.D. rapporte +1 Puissance ; avec N de Puissance, les histoires 1 à N+1 sont ouvertes.

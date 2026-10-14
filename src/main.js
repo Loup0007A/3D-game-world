@@ -54,6 +54,13 @@ const keepQ1 = () => { const q = passthroughParams().toString(); return q ? `?${
 const linkTo = (n) => (QUERY_LINKS ? `?story=${n}${keepQ()}` : (PATH_MODE ? `../${n}/` : `./${n}/`) + keepQ1());
 const hubLink = () => (QUERY_LINKS ? location.pathname + keepQ1() : (PATH_MODE ? '../' : './') + keepQ1());
 const story = storyN ? (SECRET ? getSecretStory() : getStory(storyN)) : null;
+// Niveau 101 : modèles 3D animés des créatures, chargés dès l'ouverture
+// (et seulement sur cette page : le chargeur est dans un fichier à part).
+const CREDITS_URL = 'https://github.com/Loup0007A/3D-game-world/blob/main/public/models/CREDITS.md';
+let models = null;
+const modelsReady = SECRET
+  ? import('./entities/models.js').then(({ ModelLibrary }) => new ModelLibrary().load()).then((lib) => { models = lib; if (slimes) slimes.models = lib; return lib; }).catch((e) => { console.warn('Modèles 3D indisponibles :', e); })
+  : null;
 const EMBEDDED = window.self !== window.top;
 
 function notify(type, extra = {}) {
@@ -173,6 +180,7 @@ async function buildWorld(n, c, withLoading = true) {
     diff = { ...diff, density: 0, types: [], kingChance: 0, eliteChance: 0, hp: diff.hp * 1.6, dmg: diff.dmg * 1.4, regen: diff.regen * 0.5, bossHp: 1 };
   }
   slimes = new SlimeManager(scene, terrain, diff);
+  slimes.models = models;
   slimes.playerDmgMul = artefactDmgMul();
   slimes.godMode = !!divine.god;
   bossDamageHook();
@@ -411,7 +419,7 @@ function renderTitle() {
   $('t-premise').textContent = story.premise;
   const est = estimateMinutes(storyN);
   $('t-meta').innerHTML = SECRET
-    ? `<span class="stars">${starStr(5)}</span> · 5 épreuves · seul, sans raid · toutes les compétences · récompense : rang Divin sur le S.I.D.`
+    ? `<span class="stars">${starStr(5)}</span> · 5 épreuves · seul, sans raid · toutes les compétences · récompense : rang Divin sur le S.I.D.<br><small class="t-credits">Modèles 3D : LasquetiSpice, endlessvoidmc, 3DHaupt, bucketo, FourthGreen (Sketchfab, CC BY / CC BY-NC) · <a href="${CREDITS_URL}" target="_blank" rel="noopener">crédits</a></small>`
     : `<span class="stars">${starStr(story.stars)}</span> · ≈ ${fmtTime(est)} · une île, un gardien · ${story.plan.start.length} compétence${story.plan.start.length > 1 ? 's' : ''} au départ, ${story.plan.unlocks.length} à retrouver`;
   const s = readSave();
   const cont = $('continue-btn');
@@ -785,9 +793,15 @@ function spawnWave(i) {
 }
 
 // Plans de caméra autour d'une cible.
+// Point de caméra jamais sous le relief.
+function aboveGround(p, margin = 2.5) {
+  p.y = Math.max(p.y, Math.max(world.terrain.heightAt(p.x, p.z), SEA_LEVEL) + margin);
+  return p;
+}
+
 function orbitShots(target, { title, text, r = 26, h = 12, dur = 5, look = 3 } = {}) {
   const a0 = Math.random() * Math.PI * 2;
-  const p = (a, rr, hh) => V3(target.x + Math.cos(a) * rr, target.y + hh, target.z + Math.sin(a) * rr);
+  const p = (a, rr, hh) => aboveGround(V3(target.x + Math.cos(a) * rr, target.y + hh, target.z + Math.sin(a) * rr), 4);
   return { from: p(a0, r * 1.5, h * 1.8), to: p(a0 + 0.9, r, h), look: target.clone().add(V3(0, look, 0)), dur, title, text };
 }
 
@@ -849,6 +863,10 @@ async function secretBegin(resumed) {
 
 async function startWave(i, withCinematic) {
   secret.wave = i;
+  if (modelsReady && !models) {
+    hud.toast("Les créatures de l'Archive s'éveillent…", 3000);
+    await Promise.race([modelsReady, wait(20000)]);
+  }
   slimes.clear();
   spawnWave(i);
   save();
@@ -857,8 +875,14 @@ async function startWave(i, withCinematic) {
   if (withCinematic) {
     const shots = [orbitShots(secret.center, { title: wave.title, text: wave.text, r: 34, h: 18, dur: 5, look: 4 })];
     if (first) {
+      // Gros plan : la caméra se place du côté de l'arène (dégagé), face à la créature.
       const sc = first.T.scale;
-      shots.push({ from: first.pos.clone().add(V3(9 * sc, 4 * sc, 9 * sc)), to: first.pos.clone().add(V3(5 * sc, 2.5 * sc, -4 * sc)), look: first.pos.clone().add(V3(0, 1.5 * sc, 0)), dur: 3.5, text: wave.name, shake: wave.boss ? 0.15 : 0 });
+      const c = secret.center;
+      const dir = V3(c.x - first.pos.x, 0, c.z - first.pos.z).normalize();
+      const side = V3(-dir.z, 0, dir.x);
+      const at = (d, sd, h) => aboveGround(first.pos.clone().addScaledVector(dir, d * sc).addScaledVector(side, sd * sc).add(V3(0, h * sc, 0)));
+      const look = first.pos.clone().add(V3(0, 1.3 * sc, 0));
+      shots.push({ from: at(6.5, 3.5, 2.4), to: at(4, -1.5, 1.3), look, dur: 3.5, text: wave.name, shake: wave.boss ? 0.15 : 0 });
     }
     await playCinematic(shots);
   }

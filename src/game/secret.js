@@ -15,7 +15,7 @@ export const WAVES = [
   {
     name: 'Les Chimères',
     title: 'Première épreuve',
-    text: "Trois chimères gardent les marches du Trône. Lion, chèvre et serpent : trois colères dans un seul corps.",
+    text: "Trois chimères gardent les marches du Trône. Un cou de serpent, un corps de bête, et une queue terminée par un crâne qui frappe comme un dard.",
     spawn: [['chimera', 3]],
   },
   {
@@ -33,7 +33,7 @@ export const WAVES = [
   {
     name: 'Les Trois Dragons',
     title: 'Quatrième épreuve',
-    text: "Feu, givre et néant. Les trois derniers dragons de l'Archive volent ensemble pour la première fois depuis mille âges.",
+    text: "Feu, givre et néant. Les deux premiers fendent le ciel ; le troisième attend au sol, et disparaît quand on le cherche.",
     spawn: [['dragon', 1, { tint: 'fire', hpMul: 1.6, notBoss: true }], ['dragon', 1, { tint: 'frost', hpMul: 1.6, notBoss: true }], ['dragon', 1, { tint: 'void', hpMul: 1.6, notBoss: true }]],
   },
   {
