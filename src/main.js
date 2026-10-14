@@ -218,7 +218,9 @@ function readSave() {
 const doneList = () => store.get('mv-done', []);
 // Histoires dans l'ordre : la N s'ouvre quand toutes les précédentes sont finies.
 const progress = () => { const d = doneList(); let p = 0; while (d.includes(p + 1)) p++; return p; };
-const isUnlocked = (n) => n <= progress() + 1;
+// Niveau = histoire : avec N de Puissance sur le S.I.D., les histoires 1 à
+// N+1 sont ouvertes (histoire 1 = 0 de Puissance, histoire 2 = 1…).
+const isUnlocked = (n) => n <= Math.max(progress(), Math.floor(sidPuissance)) + 1;
 function markDone(ending) {
   const d = doneList();
   if (!d.includes(storyN)) d.push(storyN);
@@ -227,8 +229,8 @@ function markDone(ending) {
 }
 
 // ─── Résultat envoyé au site principal ─────────────────────────────
-// Un résultat par CHAPITRE (île) : chaque chapitre terminé est une réussite
-// (+1 Puissance sur le S.I.D.) ; le 10e est aussi la fin de l'histoire.
+// Une histoire terminée = une réussite (+1 Puissance sur le S.I.D.) : le
+// niveau Donjons est le numéro de la dernière histoire finie.
 // `fin` : true quand la tentative d'histoire s'arrête (fin, abandon…).
 let chapterStart = Date.now();
 function report(statut, raison, extra = '', fin = true) {
@@ -733,7 +735,6 @@ async function nextWorld() {
   fade.style.opacity = '1';
   await wait(900);
   score += 250 * chapter;
-  if (chapter < CHAPTER_COUNT) report('reussi', 'chapitre_termine', '', false);
 
   if (chapter >= CHAPTER_COUNT) {
     fade.style.opacity = '0';

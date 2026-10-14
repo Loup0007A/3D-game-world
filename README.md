@@ -59,7 +59,7 @@ Structure d'une histoire :
 - **35 artefacts cachés** par île, sans faisceau ni repère sur la carte (ils ne scintillent que de près) : chacun donne **+2 de vie max et +2 % d'attaque** jusqu'à la fin de l'histoire, dans la limite de 50 artefacts (+100 vie, attaque ×2) — réglage `ARTEFACT` dans `src/main.js` ;
 - parmi eux, des **artefacts légendaires**, plus brillants : **Dieu vivant** (1 % de chance par artefact) — chaque coup terrasse l'ennemi, boss compris — et **Bouclier divin** (3 %) — 2 attaques ennemies sur 3 ratent (les chutes ne sont pas esquivées). Leur pouvoir dure jusqu'au passage du portail (fin de l'île) ;
 - **raid** : mort face au gardien (jeu ouvert depuis le S.I.D.), on peut demander de l'aide aux autres membres, qui rejoignent l'île et combattent le même boss en temps réel (`src/game/raid.js`, relais par la page du S.I.D.) ;
-- **niveau Donjons** (Puissance sur le S.I.D.) : à partir de 10, le gardien récupère ses PV quand on meurt ou qu'on s'éloigne de plus de 70 m ; à partir de 50, chaque mort a une chance sur 2 de coûter un membre (simulation fermée un moment) — réglage `DONJON` dans `src/main.js` ;
+- **niveau Donjons** (Puissance sur le S.I.D.) : à partir de 10 (10 histoires terminées), le gardien récupère ses PV quand on meurt ou qu'on s'éloigne de plus de 70 m ; à partir de 50, chaque mort a une chance sur 2 de coûter un membre (simulation fermée un moment) — réglage `DONJON` dans `src/main.js` ;
 - **dragon** : à partir de 90 de Puissance sur le S.I.D., le gardien est un dragon volant qui plonge et crache du feu ;
 - Échos renforcés (PV ×1,3, dégâts ×1,2, vitesse ×1,2) et tous capables d'attaquer à distance ; dans les premières histoires leurs tirs sont plus rares, plus faibles et mieux annoncés (réglages `BUFF` et `SHOT` dans `src/entities/slimes.js`) ;
 - quand toutes les reliques sont prises, un **gardien** (boss) apparaît au portail : il bondit (cercle rouge), invoque des renforts, puis crache des salves à mi-vie ;
@@ -184,3 +184,5 @@ Aucun asset externe : modèles en géométrie procédurale, sons en WebAudio.
 ## Licence
 
 MIT
+
+**Puissance et histoires.** Chaque histoire terminée depuis le S.I.D. rapporte +1 Puissance ; avec N de Puissance, les histoires 1 à N+1 sont ouvertes.
