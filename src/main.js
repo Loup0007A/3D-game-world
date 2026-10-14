@@ -215,14 +215,20 @@ function readSave() {
   const s = store.get(SAVE_KEY, null);
   return s && s.v === 3 ? s : null;
 }
-const doneList = () => store.get('mv-done', []);
+// Niveau = histoire : avec N de Puissance sur le S.I.D., les histoires 1 à N
+// sont validées (en vert) et la N+1 est la suivante à jouer.
+const sidLevel = Math.max(0, Math.min(STORY_COUNT, Math.floor(sidPuissance)));
+const storedDone = () => store.get('mv-done', []);
+const doneList = () => {
+  const d = new Set(storedDone());
+  for (let n = 1; n <= sidLevel; n++) d.add(n);
+  return [...d];
+};
 // Histoires dans l'ordre : la N s'ouvre quand toutes les précédentes sont finies.
 const progress = () => { const d = doneList(); let p = 0; while (d.includes(p + 1)) p++; return p; };
-// Niveau = histoire : avec N de Puissance sur le S.I.D., les histoires 1 à
-// N+1 sont ouvertes (histoire 1 = 0 de Puissance, histoire 2 = 1…).
-const isUnlocked = (n) => n <= Math.max(progress(), Math.floor(sidPuissance)) + 1;
+const isUnlocked = (n) => n <= progress() + 1;
 function markDone(ending) {
-  const d = doneList();
+  const d = storedDone();
   if (!d.includes(storyN)) d.push(storyN);
   store.set('mv-done', d);
   store.set(`mv-end${storyN}`, ending);
@@ -750,8 +756,13 @@ async function nextWorld() {
     const end = choice === 'a' ? f.a : f.b;
     await ui.sequence(end.lines, { kicker: 'Épilogue', deep: true });
     score += 1000;
+    // Une histoire déjà validée ne rapporte pas de nouveau point.
+    const alreadyDone = doneList().includes(storyN);
     markDone(end.label);
-    report('reussi', 'histoire_terminee', `;fin=${choice === 'a' ? 'A' : 'B'}`);
+    if (alreadyDone) {
+      run = null;
+      setTimeout(() => hud.toast('Histoire déjà validée : pas de nouveau point de Puissance.', 4500), 1500);
+    } else report('reussi', 'histoire_terminee', `;fin=${choice === 'a' ? 'A' : 'B'}`);
     store.del(SAVE_KEY);
     notify('complete', { ending: end.label, score, minutes: Math.round(playTime / 60) });
     $('c-title').textContent = story.title;
