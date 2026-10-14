@@ -216,14 +216,33 @@ function readSave() {
   return s && s.v === 3 ? s : null;
 }
 // Niveau = histoire : avec N de Puissance sur le S.I.D., les histoires 1 à N
-// sont validées (en vert) et la N+1 est la suivante à jouer.
-const sidLevel = Math.max(0, Math.min(STORY_COUNT, Math.floor(sidPuissance)));
+// sont validées (en vert) et la N+1 est la suivante à jouer. Dans le S.I.D.,
+// c'est la Puissance qui fait foi (le S.I.D. l'envoie, et la renvoie après
+// chaque histoire validée) ; hors du S.I.D., la progression de l'appareil.
+const levelFromSid = new URLSearchParams(location.search).has('sid_puissance');
+let sidLevel = Math.max(0, Math.min(STORY_COUNT, Math.floor(sidPuissance)));
 const storedDone = () => store.get('mv-done', []);
 const doneList = () => {
-  const d = new Set(storedDone());
-  for (let n = 1; n <= sidLevel; n++) d.add(n);
-  return [...d];
+  if (levelFromSid) return Array.from({ length: sidLevel }, (_, i) => i + 1);
+  return storedDone();
 };
+window.addEventListener('message', (e) => {
+  if (e.source !== window.parent || e.data?.type !== 'sid-level') return;
+  const lvl = Math.max(0, Math.min(STORY_COUNT, Math.floor(Number(e.data.puissance) || 0)));
+  if (!levelFromSid || lvl === sidLevel) return;
+  const up = lvl > sidLevel;
+  sidLevel = lvl;
+  // Les liens (histoire suivante, liste) emportent la nouvelle Puissance.
+  try {
+    const u = new URL(location.href);
+    u.searchParams.set('sid_puissance', String(lvl));
+    history.replaceState(history.state, '', u);
+  } catch { /* adresse non modifiable */ }
+  if (state === 'hub') renderHub();
+  else if (state === 'title') renderTitle();
+  if (up) hud.toast(`Puissance ${lvl} : histoire ${lvl} validée, l'histoire ${Math.min(lvl + 1, STORY_COUNT)} est ouverte.`, 5000);
+});
+if (levelFromSid && embedded) { try { window.parent.postMessage({ type: 'mv-hello' }, '*'); } catch { /* parent inaccessible */ } }
 // Histoires dans l'ordre : la N s'ouvre quand toutes les précédentes sont finies.
 const progress = () => { const d = doneList(); let p = 0; while (d.includes(p + 1)) p++; return p; };
 const isUnlocked = (n) => n <= progress() + 1;
@@ -1154,7 +1173,7 @@ function simulate(sec, keys = []) {
 
 // Accès debug / tests.
 window.__game = {
-  get world() { return world; }, get slimes() { return slimes; }, get score() { return score; }, get chapter() { return chapter; },
+  get world() { return world; }, get slimes() { return slimes; }, get score() { return score; }, get chapter() { return chapter; }, set chapter(v) { chapter = v; },
   get state() { return state; }, get artefacts() { return artefacts; }, get divine() { return divine; }, get fragments() { return fragments; }, get flags() { return flags; }, get diff() { return diff; },
   story, storyN, player, env, cam, input, skills, ui, setState, nextWorld, simulate, renderer, scene, camera, onRelic, ensureBoss, TYPES, raid, startHelperRaid,
 };
