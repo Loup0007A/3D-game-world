@@ -254,7 +254,11 @@ net.on('joined', (d) => {
   showLobby();
 });
 
-net.on('error', (m) => big('Connexion perdue', m, 4000));
+net.on('error', (m) => {
+  // Pas encore dans l'arène : on le dit sur l'écran de chargement.
+  if (!battle) { $('load-msg').textContent = `${m} Réessaie dans un instant.`; return; }
+  big('Connexion perdue', m, 4000);
+});
 
 net.on('event', (ev, p, from) => {
   if (!battle) return;
