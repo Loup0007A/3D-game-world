@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>L'Arène du Dragon · Mondes Vivants</title>
+  <meta name="description" content="Défi du Dragon : un membre du S.I.D. se change en dragon et convoque ses adversaires dans l'arène." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐉</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./src/style.css" />
+  <link rel="stylesheet" href="./src/arena/arena.css" />
+</head>
+<body class="arena">
+  <canvas id="game"></canvas>
+  <div id="hurt"></div>
+  <div id="fade"></div>
+  <div id="burn"></div>
+
+  <div id="loading" class="overlay">
+    <div class="load-box">
+      <div class="load-title">L'Arène du Dragon</div>
+      <div class="load-bar"><div id="load-fill"></div></div>
+      <div id="load-msg">Le ciel s'assombrit…</div>
+    </div>
+  </div>
+
+  <div id="ahud" class="hidden">
+    <div id="a-top">
+      <div id="a-title"></div>
+      <div id="a-timer"></div>
+    </div>
+    <div id="a-dragon">
+      <div class="a-dname"></div>
+      <div class="a-track"><div class="a-fill" id="a-dfill"></div></div>
+    </div>
+    <div id="a-players"></div>
+    <div id="a-feed"></div>
+    <div id="a-big"></div>
+    <div id="a-role"></div>
+    <div id="a-skills"></div>
+    <div id="a-click" class="hidden">Clique pour prendre les commandes</div>
+    <div id="a-cross"></div>
+  </div>
+
+  <div id="a-lobby" class="overlay hidden">
+    <div class="panel">
+      <div class="story-kicker">Défi du Dragon</div>
+      <h2 id="lobby-title">L'arène se remplit</h2>
+      <p class="muted" id="lobby-text"></p>
+      <ul id="lobby-list"></ul>
+      <button class="btn primary hidden" id="lobby-start" type="button">Lancer le combat</button>
+      <p class="muted small" id="lobby-help"></p>
+    </div>
+  </div>
+
+  <div id="a-end" class="overlay hidden">
+    <div class="panel">
+      <div class="story-kicker" id="end-kicker">Fin de la bataille</div>
+      <h2 id="end-title"></h2>
+      <p class="muted" id="end-text"></p>
+      <button class="btn primary" id="end-close" type="button">Revenir au S.I.D.</button>
+    </div>
+  </div>
+
+  <div id="a-alone" class="overlay hidden">
+    <div class="panel">
+      <h2>L'Arène du Dragon</h2>
+      <p class="muted">Cette arène s'ouvre depuis le S.I.D., avec le pouvoir du titre « Fléau Draconique ».</p>
+    </div>
+  </div>
+
+  <div id="touch-ui">
+    <div id="touch-stick"><div id="touch-knob"></div></div>
+    <button id="touch-attack" class="touch-btn">✦</button>
+    <button id="touch-jump" class="touch-btn">⤒</button>
+    <button id="touch-run" class="touch-btn">»</button>
+    <button id="touch-dash" class="touch-btn">⛉</button>
+    <button id="touch-bolt" class="touch-btn">⤓</button>
+    <button id="touch-nova" class="touch-btn">◎</button>
+  </div>
+
+  <script type="module" src="./src/arena/main.js"></script>
+</body>
+</html>

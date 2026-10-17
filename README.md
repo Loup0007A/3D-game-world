@@ -88,6 +88,15 @@ Visible seulement une fois les 100 niveaux terminés (carte dorée dans le hub, 
 
 Les créatures des quatre premières épreuves sont des **modèles 3D animés** (`public/models/`, chargés par `src/entities/models.js` seulement sur cette page ; si un fichier ne charge pas, la créature dessinée en code prend le relais). Monstres +60 % de PV, +40 % de dégâts, régénération divisée par deux ; toutes les compétences au départ ; mourir relance l'épreuve en cours. Le vaincre fait passer au **rang Divin** sur le S.I.D. (`src/game/secret.js`).
 
+### Arène du Dragon (`arena.html`)
+
+Page à part, ouverte par le S.I.D. quand un membre au titre **Fléau draconique** lance un *Défi du Dragon* : le lanceur **devient le dragon** (démon, dragon noir ou drake), les joueurs convoqués (1 à 6) le combattent dans une arène, et, si l'option est payée, **tout le S.I.D. regarde en tribune** avec une caméra de retransmission (plans larges, poursuite, face au dragon, épaule d'un joueur, contre-plongée, vue du ciel, coupes sur le souffle et les chutes).
+
+- **Dragon** : vol libre (ZQSD, Espace monter, Ctrl/Maj descendre), souffle de feu (clic maintenu, jauge), morsure (clic droit / A), rugissement qui étourdit (E).
+- **Joueurs** : éclairs de lumière (clic / F), frappe au corps à corps, bouclier contre le feu (E, 1,6 s, recharge 9 s).
+- Déroulé : attente (75 s, départ dès que tout le monde est là), cinématique d'entrée, combat (2 min 30), puis cinématique de fin : *carbonisation* ou *dévoration* du dernier joueur (option payée), chute du dragon s'il est abattu.
+- Le dragon (son navigateur) arbitre les dégâts ; les échanges passent par la page du S.I.D. (`src/arena/net.js`, comme les raids). Essai sans S.I.D. : `arena.html?local=1&role=dragon|player|spectator&me=…&players=p1:Bob` dans plusieurs onglets.
+
 ### Compétences par histoire
 
 | | Compétences en tout | Au départ | À retrouver |
@@ -181,6 +190,7 @@ src/
   game/secret.js       niveau caché 101 (vagues, textes)
   game/cinematic.js    cinématiques (plans de caméra, sous-titres)
   entities/models.js   modèles 3D animés du niveau 101 (public/models)
+  arena/               Arène du Dragon (arena.html) : dragon pilotable, héros distants, réalisateur de la tribune, relais réseau
   game/story.js        textes écrits à la main de l'histoire 1
   game/skills.js       16 compétences
   core/                noise, input, caméra 3e personne, audio synthétisé

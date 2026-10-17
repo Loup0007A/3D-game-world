@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => ({
     target: 'es2020',
     chunkSizeWarningLimit: 1200,
     outDir: mode === 'single' ? 'dist-single' : 'dist',
+    // Deux pages : le jeu (index.html) et l'Arène du Dragon (arena.html).
+    rollupOptions: mode === 'single' ? undefined : { input: { main: 'index.html', arena: 'arena.html' } },
   },
   server: { host: true },
 }));

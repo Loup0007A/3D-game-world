@@ -74,6 +74,27 @@ export class Particles {
     }
   }
 
+  // Jet orienté (souffle de feu…) : dir normalisé, cône d'ouverture « cone » (radians).
+  spray(p, dir, color, count = 10, { speed = 20, cone = 0.25, gravity = 0, life = 0.8, size = 0.6, spread = 0.2, colorJitter = 0.25 } = {}) {
+    const c = new THREE.Color(color);
+    for (let n = 0; n < count; n++) {
+      const i = this.cursor;
+      this.cursor = (this.cursor + 1) % this.max;
+      this.pos[i * 3] = p.x + (Math.random() - 0.5) * spread;
+      this.pos[i * 3 + 1] = p.y + (Math.random() - 0.5) * spread;
+      this.pos[i * 3 + 2] = p.z + (Math.random() - 0.5) * spread;
+      const s = speed * (0.7 + Math.random() * 0.6);
+      this.vel[i * 3] = (dir.x + (Math.random() - 0.5) * cone * 2) * s;
+      this.vel[i * 3 + 1] = (dir.y + (Math.random() - 0.5) * cone * 2) * s;
+      this.vel[i * 3 + 2] = (dir.z + (Math.random() - 0.5) * cone * 2) * s;
+      const v = 1 - colorJitter + Math.random() * colorJitter * 2;
+      this.col[i * 3] = c.r * v; this.col[i * 3 + 1] = c.g * v * (0.6 + Math.random() * 0.5); this.col[i * 3 + 2] = c.b * v;
+      this.life[i] = this.maxLife[i] = life * (0.6 + Math.random() * 0.8);
+      this.grav[i] = gravity;
+      this.baseSize[i] = size * (0.6 + Math.random() * 0.9);
+    }
+  }
+
   update(dt) {
     for (let i = 0; i < this.max; i++) {
       if (this.life[i] <= 0) { this.alpha[i] = 0; this.size[i] = 0; continue; }

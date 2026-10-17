@@ -1,0 +1,59 @@
+/* ─── Arène du Dragon ─── */
+#burn { position: fixed; inset: 0; pointer-events: none; z-index: 35; opacity: 0; transition: opacity 0.35s;
+  background: radial-gradient(ellipse at center, rgba(255, 170, 40, 0.15), rgba(255, 80, 10, 0.55) 70%, rgba(120, 10, 0, 0.85)); }
+.load-box { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+#loading { background: radial-gradient(ellipse at 50% 120%, #4a0d08, #05080c 70%); z-index: 50; }
+
+#ahud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+#a-top { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); text-align: center; }
+#a-title { font: 700 clamp(13px, 1.6vw, 17px) var(--display); letter-spacing: 0.22em; text-transform: uppercase; color: #ffd28a; text-shadow: 0 0 14px rgba(255, 110, 40, 0.7), 0 1px 3px #000; white-space: nowrap; }
+#a-timer { margin-top: 4px; font: 600 15px var(--body); color: var(--ink); text-shadow: 0 1px 4px #000; font-variant-numeric: tabular-nums; }
+#a-dragon { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); width: min(520px, calc(100vw - 40px)); text-align: center; }
+.a-dname { font: 700 13px var(--display); letter-spacing: 0.25em; text-transform: uppercase; color: #ff9a6a; text-shadow: 0 1px 6px #000; margin-bottom: 5px; }
+.a-track { height: 11px; border-radius: 6px; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 140, 80, 0.5); overflow: hidden; }
+.a-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #7a0a00, #ff5a1a, #ffb347); transition: width 0.2s; }
+#a-players { position: absolute; top: 16px; left: 16px; display: flex; flex-direction: column; gap: 7px; }
+.ap { display: grid; grid-template-columns: 1fr; gap: 3px; min-width: 150px; padding: 6px 9px; border-radius: 10px; background: var(--glass); border: 1px solid var(--line); }
+.ap b { font: 600 12px var(--body); letter-spacing: 0.04em; display: flex; justify-content: space-between; gap: 8px; }
+.ap .t { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.ap .f { height: 100%; background: linear-gradient(90deg, #ff5d6c, #ffa0a8); transition: width 0.2s; }
+.ap.dead { opacity: 0.55; }
+.ap.dead b::after { content: '💀'; }
+.ap.me { border-color: rgba(127, 240, 255, 0.55); }
+#a-feed { position: absolute; top: 16px; right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 45vw; }
+.af { font: 500 13px var(--body); padding: 5px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.55); border: 1px solid rgba(255, 140, 80, 0.35); animation: af-in 0.3s ease-out; }
+@keyframes af-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+#a-big { position: absolute; top: 34%; left: 0; right: 0; text-align: center; font: 700 clamp(34px, 7vw, 80px) var(--display); letter-spacing: 0.14em; color: #ffe2a8; text-shadow: 0 0 30px rgba(255, 110, 30, 0.9), 0 3px 0 #000; opacity: 0; transform: scale(1.15); transition: opacity 0.5s, transform 1.2s; }
+#a-big.on { opacity: 1; transform: none; }
+#a-big small { display: block; font: 500 clamp(14px, 2vw, 20px) var(--body); letter-spacing: 0.04em; color: var(--ink); margin-top: 10px; text-shadow: 0 1px 6px #000; }
+#a-role { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font: 500 12px var(--body); color: var(--ink-dim); text-align: center; text-shadow: 0 1px 4px #000; white-space: nowrap; }
+#a-skills { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: flex-end; }
+.ask { position: relative; width: 58px; height: 58px; border-radius: 14px; background: var(--glass); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+.ask i { font-style: normal; font-size: 22px; }
+.ask span { font: 600 9px var(--body); letter-spacing: 0.08em; color: var(--ink-dim); text-transform: uppercase; }
+.ask .cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); transition: height 0.1s linear; }
+.ask.gauge { width: 140px; }
+.ask.gauge .g { position: absolute; left: 6px; right: 6px; bottom: 6px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.ask.gauge .g i { display: block; height: 100%; background: linear-gradient(90deg, #ff5a1a, #ffd46a); }
+#a-click { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); font: 600 14px var(--body); padding: 8px 14px; border-radius: 10px; background: rgba(0, 0, 0, 0.55); }
+#a-cross { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255, 240, 220, 0.8); box-shadow: 0 0 6px #000; }
+body.spectator #a-cross, body.spectator #a-skills { display: none; }
+
+#a-end .panel { width: min(420px, 100%); text-align: center; }
+#a-lobby { position: fixed; inset: auto; top: 120px; right: 16px; z-index: 30; display: block; padding: 0; pointer-events: none; }
+#a-lobby .panel { width: min(330px, calc(100vw - 32px)); padding: 18px; gap: 10px; text-align: center; pointer-events: auto; }
+#a-lobby h2 { font-size: 20px; }
+#lobby-list { list-style: none; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+#lobby-list li { display: flex; justify-content: space-between; padding: 8px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); font-size: 14px; }
+#lobby-list li.ok { border-color: rgba(127, 240, 160, 0.45); }
+.muted.small { font-size: 12px; }
+#a-end { background: rgba(5, 8, 12, 0.55); z-index: 45; }
+
+@media (pointer: coarse) {
+  #touch-dash { right: 116px; bottom: 120px; }
+  #touch-bolt { right: 28px; bottom: 196px; }
+  #touch-nova { right: 116px; bottom: 200px; }
+  #a-skills { bottom: auto; top: 100px; transform: translateX(-50%) scale(0.8); }
+  #a-role, #a-cross, #a-click { display: none; }
+  #a-players { top: 120px; }
+}
