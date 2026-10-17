@@ -507,6 +507,7 @@ function charMaterials(obj) {
 }
 
 function startFinale(d) {
+  dragon.vel.set(0, 0, 0);
   input.exitLock();
   const kind = d.kind;
   const V = new THREE.Vector3(d.vx, d.vy, d.vz);
@@ -689,6 +690,7 @@ function update(dt) {
     const look = input.consumeLook();
     if (!cine.active) { cam.rotate(look.dx, look.dy); }
     const scripted = phase === 'intro' || phase === 'finale' || phase === 'end';
+    if (phase === 'intro') dragon.vel.set(0, 0, 0);
     if (phase === 'intro') {
       const k = Math.min((now() - phaseStart) / 3.2, 1);
       const S = new THREE.Vector3(phaseData.sx, phaseData.sy, phaseData.sz), H = new THREE.Vector3(phaseData.hx, phaseData.hy, phaseData.hz);
@@ -772,7 +774,7 @@ function update(dt) {
     sendT -= dt;
     if (sendT <= 0) {
       sendT = 0.18;
-      net.send('st', { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), ry: +player.facing.toFixed(2), hp: Math.round(player.health), a: player.alive ? 1 : 0, m: player.attackT >= 0 ? 3 : 0, sh: shieldT > 0 ? 1 : 0 });
+      net.send('st', { x: +player.pos.x.toFixed(2), y: +player.pos.y.toFixed(2), z: +player.pos.z.toFixed(2), ry: +player.facing.toFixed(2), vx: +player.vel.x.toFixed(1), vz: +player.vel.z.toFixed(1), hp: Math.round(player.health), a: player.alive ? 1 : 0, m: player.attackT >= 0 ? 3 : 0, sh: shieldT > 0 ? 1 : 0 });
     }
     beatT -= dt;
     if (beatT <= 0 && phase === 'lobby') { beatT = 3; net.send('hi', { role }); }

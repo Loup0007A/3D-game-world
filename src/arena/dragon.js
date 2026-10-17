@@ -190,12 +190,16 @@ export class Dragon {
     this.airborne = !!s.f;
     if (s.ax != null) this.aim.set(s.ax, s.ay, s.az).normalize();
     if (s.k) this.biteT = Math.max(this.biteT, 0.2);
+    // Vitesse : les autres pages prolongent le vol entre deux nouvelles.
+    if (s.vx != null) this.vel.set(s.vx, s.vy || 0, s.vz || 0); else this.vel.set(0, 0, 0);
     if (!this.seen) { this.pos.copy(this.target); this.yaw = this.targetYaw; }
     this.seen = performance.now();
   }
 
   follow(dt) {
-    this.pos.lerp(this.target, damp(9, dt));
+    const age = this.seen ? Math.min((performance.now() - this.seen) / 1000, 0.45) : 0;
+    this._pred = (this._pred || new THREE.Vector3()).copy(this.target).addScaledVector(this.vel, age);
+    this.pos.lerp(this._pred, damp(9, dt));
     const dy = wrap(this.targetYaw - this.yaw);
     this.yaw = wrap(this.yaw + dy * damp(9, dt));
     this.pitch += (this.targetPitch - this.pitch) * damp(8, dt);
@@ -208,6 +212,7 @@ export class Dragon {
       x: +this.pos.x.toFixed(2), y: +this.pos.y.toFixed(2), z: +this.pos.z.toFixed(2),
       ry: +this.yaw.toFixed(3), pi: +this.pitch.toFixed(3),
       ax: +this.aim.x.toFixed(3), ay: +this.aim.y.toFixed(3), az: +this.aim.z.toFixed(3),
+      vx: +this.vel.x.toFixed(1), vy: +this.vel.y.toFixed(1), vz: +this.vel.z.toFixed(1),
       hp: Math.round(this.hp), mhp: this.maxHp, b: this.breathing ? 1 : 0, f: this.airborne ? 1 : 0, k: this.biteT > 0 ? 1 : 0,
     };
   }

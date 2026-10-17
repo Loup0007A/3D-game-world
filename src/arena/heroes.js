@@ -69,6 +69,8 @@ export class RemoteHero {
     this.target.set(s.x, s.y, s.z);
     if (!this.seen) { this.p.pos.copy(this.target); this.prev.copy(this.target); this.p.visY = s.y; }
     this.ry = s.ry || 0;
+    this.vx = s.vx || 0;
+    this.vz = s.vz || 0;
     this.hp = s.hp ?? this.hp;
     this.alive = s.a !== 0;
     this.shieldOn = !!s.sh;
@@ -80,7 +82,12 @@ export class RemoteHero {
     const p = this.p;
     if (!this.seen && !this.forceVisible) { p.object.visible = false; return; }
     this.prev.copy(p.pos);
-    p.pos.lerp(this.target, 1 - Math.exp(-dt * 12));
+    // Entre deux nouvelles, on prolonge la course.
+    const age = Math.min((performance.now() - this.seen) / 1000, 0.4);
+    const want = this._want || (this._want = new THREE.Vector3());
+    want.copy(this.target);
+    if (this.alive) { want.x += (this.vx || 0) * age; want.z += (this.vz || 0) * age; }
+    p.pos.lerp(want, 1 - Math.exp(-dt * 12));
     const v = p.pos.clone().sub(this.prev).divideScalar(Math.max(dt, 1e-4));
     p.vel.copy(v);
     p.speed2D = Math.hypot(v.x, v.z);
